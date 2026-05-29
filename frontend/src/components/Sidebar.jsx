@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { getDashboard } from "../api/dashboardService";
+import { getMe } from "../api/userService";
 import {
   AddIcon,
   CalendarIcon,
@@ -41,6 +42,13 @@ const groups = [
     ]
   },
   {
+    label: "Platform",
+    systemOnly: true,
+    links: [
+      { to: "/organizations", label: "Organizations", icon: UsersIcon }
+    ]
+  },
+  {
     label: "Admin",
     links: [
       { to: "/users", label: "Users", icon: UsersIcon },
@@ -51,18 +59,20 @@ const groups = [
 
 export default function Sidebar({ open, onClose }) {
   const [badges, setBadges] = useState({ jobs: 0, followUps: 0, payments: 0 });
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
     let mounted = true;
 
-    async function loadBadges() {
+    async function loadSidebarData() {
       try {
-        const dashboard = await getDashboard();
+        const [dashboard, user] = await Promise.all([getDashboard(), getMe()]);
 
         if (!mounted) {
           return;
         }
 
+        setCurrentUser(user);
         setBadges({
           jobs: dashboard.cards.todaysScheduledJobs || 0,
           followUps: dashboard.cards.pendingFollowUps || 0,
@@ -73,7 +83,7 @@ export default function Sidebar({ open, onClose }) {
       }
     }
 
-    loadBadges();
+    loadSidebarData();
 
     return () => {
       mounted = false;
@@ -84,6 +94,8 @@ export default function Sidebar({ open, onClose }) {
     `interactive-nav group flex min-h-10 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium ${
       isActive ? "bg-[var(--brand-blue)] text-white shadow-sm" : "text-slate-600 hover:bg-blue-50 hover:text-[var(--brand-blue)]"
     }`;
+
+  const visibleGroups = groups.filter((group) => !group.systemOnly || currentUser?.role === "SYSTEM_ADMIN");
 
   return (
     <>
@@ -106,7 +118,7 @@ export default function Sidebar({ open, onClose }) {
           </div>
         </div>
         <nav className="space-y-5">
-          {groups.map((group) => (
+          {visibleGroups.map((group) => (
             <section key={group.label}>
               <div className="mb-2 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
                 {group.label}

@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AddCustomer from "./pages/AddCustomer";
@@ -15,11 +15,23 @@ import FollowUps from "./pages/FollowUps";
 import JobDetails from "./pages/JobDetails";
 import Jobs from "./pages/Jobs";
 import Login from "./pages/Login";
+import OrganizationDetails from "./pages/OrganizationDetails";
+import Organizations from "./pages/Organizations";
 import PaymentDetails from "./pages/PaymentDetails";
 import Payments from "./pages/Payments";
 import ScheduleJob from "./pages/ScheduleJob";
 import Settings from "./pages/Settings";
 import Users from "./pages/Users";
+
+function SystemAdminRoute() {
+  const user = JSON.parse(localStorage.getItem("user") || "null");
+
+  if (user?.role !== "SYSTEM_ADMIN") {
+    return <Navigate to="/" replace />;
+  }
+
+  return <Outlet />;
+}
 
 export default function App() {
   return (
@@ -43,6 +55,10 @@ export default function App() {
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/call-logs" element={<CallLogs />} />
           <Route path="/followups" element={<FollowUps />} />
+          <Route element={<SystemAdminRoute />}>
+            <Route path="/organizations" element={<Organizations />} />
+            <Route path="/organizations/:id" element={<OrganizationDetails />} />
+          </Route>
           <Route path="/users" element={<Users />} />
           <Route path="/settings" element={<Settings />} />
         </Route>

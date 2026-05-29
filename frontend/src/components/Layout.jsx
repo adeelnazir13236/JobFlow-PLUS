@@ -19,6 +19,7 @@ export default function Layout() {
 
         if (mounted) {
           setCurrentUser(user);
+          localStorage.setItem("user", JSON.stringify(user));
         }
       } catch {
         // Auth interceptor handles expired sessions.
@@ -34,6 +35,7 @@ export default function Layout() {
 
   function handleLogout() {
     localStorage.removeItem("token");
+    localStorage.removeItem("user");
     navigate("/login");
   }
 
