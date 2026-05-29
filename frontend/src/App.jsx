@@ -2,6 +2,8 @@ import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AddCustomer from "./pages/AddCustomer";
+import AddOrganization from "./pages/AddOrganization";
+import AddOrganizationAdmin from "./pages/AddOrganizationAdmin";
 import AddPayment from "./pages/AddPayment";
 import Calendar from "./pages/Calendar";
 import CallLogs from "./pages/CallLogs";
@@ -57,7 +59,9 @@ export default function App() {
           <Route path="/followups" element={<FollowUps />} />
           <Route element={<SystemAdminRoute />}>
             <Route path="/organizations" element={<Organizations />} />
+            <Route path="/organizations/add" element={<AddOrganization />} />
             <Route path="/organizations/:id" element={<OrganizationDetails />} />
+            <Route path="/organizations/admins/add" element={<AddOrganizationAdmin />} />
           </Route>
           <Route path="/users" element={<Users />} />
           <Route path="/settings" element={<Settings />} />

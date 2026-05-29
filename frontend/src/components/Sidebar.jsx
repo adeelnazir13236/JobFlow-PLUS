@@ -45,7 +45,9 @@ const groups = [
     label: "Platform",
     systemOnly: true,
     links: [
-      { to: "/organizations", label: "Organizations", icon: UsersIcon }
+      { to: "/organizations", label: "Organizations", icon: UsersIcon },
+      { to: "/organizations/add", label: "Add Organization", icon: AddIcon },
+      { to: "/organizations/admins/add", label: "Add Org Admin", icon: AddIcon }
     ]
   },
   {
