@@ -1,5 +1,6 @@
 import prisma from "../config/prisma.js";
 import ApiError from "../utils/ApiError.js";
+import { tenantData, tenantWhere } from "../utils/tenant.js";
 import { validateEnum } from "../utils/validation.js";
 
 const callResponses = ["INTERESTED", "NOT_INTERESTED", "CALL_LATER", "WRONG_NUMBER", "NO_ANSWER"];
@@ -10,8 +11,9 @@ const callLogInclude = {
   updatedBy: { select: { id: true, name: true, email: true, role: true } }
 };
 
-export async function getCallLogs(filters = {}) {
+export async function getCallLogs(filters = {}, currentUser) {
   const where = {
+    ...tenantWhere(currentUser),
     customerId: filters.customerId ? Number(filters.customerId) : undefined,
     agentId: filters.agentId ? Number(filters.agentId) : undefined,
     response: filters.response || undefined
@@ -26,9 +28,9 @@ export async function getCallLogs(filters = {}) {
   });
 }
 
-export async function getCallLogById(id) {
-  const callLog = await prisma.callLog.findUnique({
-    where: { id },
+export async function getCallLogById(id, currentUser) {
+  const callLog = await prisma.callLog.findFirst({
+    where: { id, ...tenantWhere(currentUser) },
     include: callLogInclude
   });
 
@@ -48,8 +50,17 @@ export async function createCallLog(data, currentUser) {
 
   validateEnum(response, callResponses, "Call response");
 
+  const customer = await prisma.customer.findFirst({
+    where: { id: Number(customerId), ...tenantWhere(currentUser) }
+  });
+
+  if (!customer) {
+    throw new ApiError(404, "Customer not found");
+  }
+
   return prisma.callLog.create({
     data: {
+      ...tenantData(currentUser),
       customerId: Number(customerId),
       agentId: data.agentId ? Number(data.agentId) : currentUser.id,
       response,
@@ -65,6 +76,22 @@ export async function createCallLog(data, currentUser) {
 export async function updateCallLog(id, data, currentUser) {
   validateEnum(data.response, callResponses, "Call response");
 
+  const existingCallLog = await prisma.callLog.findFirst({ where: { id, ...tenantWhere(currentUser) } });
+
+  if (!existingCallLog) {
+    throw new ApiError(404, "Call log not found");
+  }
+
+  if (data.customerId) {
+    const customer = await prisma.customer.findFirst({
+      where: { id: Number(data.customerId), ...tenantWhere(currentUser) }
+    });
+
+    if (!customer) {
+      throw new ApiError(404, "Customer not found");
+    }
+  }
+
   return prisma.callLog.update({
     where: { id },
     data: {
@@ -79,9 +106,9 @@ export async function updateCallLog(id, data, currentUser) {
   });
 }
 
-export async function getCustomerCallLogs(customerId) {
+export async function getCustomerCallLogs(customerId, currentUser) {
   return prisma.callLog.findMany({
-    where: { customerId },
+    where: { customerId, ...tenantWhere(currentUser) },
     include: callLogInclude,
     orderBy: { createdAt: "desc" }
   });

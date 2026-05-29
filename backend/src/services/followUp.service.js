@@ -1,5 +1,6 @@
 import prisma from "../config/prisma.js";
 import ApiError from "../utils/ApiError.js";
+import { tenantData, tenantWhere } from "../utils/tenant.js";
 import { validateEnum } from "../utils/validation.js";
 
 const callResponses = ["INTERESTED", "NOT_INTERESTED", "CALL_LATER", "WRONG_NUMBER", "NO_ANSWER"];
@@ -10,9 +11,10 @@ function endOfToday() {
   return date;
 }
 
-export async function getPendingFollowUps() {
+export async function getPendingFollowUps(currentUser) {
   return prisma.followUp.findMany({
     where: {
+      ...tenantWhere(currentUser),
       status: "PENDING",
       followUpDate: {
         lte: endOfToday()
@@ -34,6 +36,12 @@ export async function getPendingFollowUps() {
 }
 
 export async function markFollowUpDone(id, notes, currentUser) {
+  const followUp = await prisma.followUp.findFirst({ where: { id, ...tenantWhere(currentUser) } });
+
+  if (!followUp) {
+    throw new ApiError(404, "Follow-up not found");
+  }
+
   return prisma.followUp.update({
     where: { id },
     data: {
@@ -71,8 +79,13 @@ export async function recordFollowUpCall(id, data, currentUser) {
       include: { customer: true, job: true }
     });
 
+    if (followUp.organizationId !== currentUser.organizationId) {
+      throw new ApiError(404, "Follow-up not found");
+    }
+
     const callLog = await tx.callLog.create({
       data: {
+        ...tenantData(currentUser),
         customerId: followUp.customerId,
         agentId: currentUser.id,
         response,
@@ -107,6 +120,7 @@ export async function recordFollowUpCall(id, data, currentUser) {
     const job = response === "INTERESTED"
       ? await tx.job.create({
           data: {
+            ...tenantData(currentUser),
             customerId: followUp.customerId,
             assignedAgentId: ["ADMIN", "AGENT"].includes(currentUser.role) ? currentUser.id : undefined,
             scheduledDate: new Date(scheduledJobDate),
@@ -127,6 +141,7 @@ export async function recordFollowUpCall(id, data, currentUser) {
     const nextFollowUp = await tx.followUp.create({
       data: {
         customerId: followUp.customerId,
+        ...tenantData(currentUser),
         jobId: job?.id || followUp.jobId,
         followUpDate: new Date(nextCallDate),
         status: "PENDING",

@@ -1,12 +1,36 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
+import { getMe } from "../api/userService";
 import Button from "./Button";
 import Sidebar from "./Sidebar";
 import ThemeToggle from "./ThemeToggle";
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadCurrentUser() {
+      try {
+        const user = await getMe();
+
+        if (mounted) {
+          setCurrentUser(user);
+        }
+      } catch {
+        // Auth interceptor handles expired sessions.
+      }
+    }
+
+    loadCurrentUser();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   function handleLogout() {
     localStorage.removeItem("token");
@@ -25,8 +49,12 @@ export default function Layout() {
               </Button>
               <img src="/logo.png" alt="JobFlow" className="h-9 w-9 rounded-md object-contain md:hidden" />
               <div>
-                <div className="text-sm font-semibold text-[var(--brand-navy)] dark:text-slate-100">JobFlow Operations</div>
-                <div className="text-xs text-slate-500 dark:text-slate-400">Customers, jobs, calls, and follow-ups</div>
+                <div className="text-sm font-semibold text-[var(--brand-navy)] dark:text-slate-100">
+                  {currentUser?.organization?.name || "JobFlow PLUS"}
+                </div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  {currentUser?.role === "SYSTEM_ADMIN" ? "System administration" : "Customers, jobs, calls, and follow-ups"}
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-2">

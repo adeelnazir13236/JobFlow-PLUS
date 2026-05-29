@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import prisma from "../config/prisma.js";
 import ApiError from "../utils/ApiError.js";
+import { userSelectWithOrganization } from "../utils/tenant.js";
 
 export async function authenticate(req, _res, next) {
   const authHeader = req.headers.authorization;
@@ -14,10 +15,10 @@ export async function authenticate(req, _res, next) {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     const user = await prisma.user.findUnique({
       where: { id: payload.id },
-      select: { id: true, name: true, email: true, role: true, status: true }
+      select: userSelectWithOrganization()
     });
 
-    if (!user || user.status !== "ACTIVE") {
+    if (!user || user.status !== "ACTIVE" || (user.organization && user.organization.status !== "ACTIVE")) {
       return next(new ApiError(401, "User is not allowed to access this resource"));
     }
 

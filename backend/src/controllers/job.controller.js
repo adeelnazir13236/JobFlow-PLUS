@@ -8,18 +8,18 @@ import {
 } from "../services/job.service.js";
 import { parseId } from "../utils/validation.js";
 
-export async function listJobs(_req, res) {
-  const jobs = await getJobs();
+export async function listJobs(req, res) {
+  const jobs = await getJobs(req.user);
   res.json({ jobs });
 }
 
-export async function listCalendarJobs(_req, res) {
-  const jobs = await getCalendarJobs();
+export async function listCalendarJobs(req, res) {
+  const jobs = await getCalendarJobs(req.user);
   res.json({ jobs });
 }
 
 export async function getJob(req, res) {
-  const job = await getJobById(parseId(req.params.id, "Job ID"));
+  const job = await getJobById(parseId(req.params.id, "Job ID"), req.user);
   res.json({ job });
 }
 

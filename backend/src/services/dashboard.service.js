@@ -1,4 +1,5 @@
 import prisma from "../config/prisma.js";
+import { isSystemAdmin, tenantWhere } from "../utils/tenant.js";
 
 function startOfDay(date = new Date()) {
   const value = new Date(date);
@@ -20,11 +21,12 @@ function endOfMonth(date = new Date()) {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
 }
 
-export async function getDashboardSummary() {
+export async function getDashboardSummary(currentUser) {
   const todayStart = startOfDay();
   const todayEnd = endOfDay();
   const monthStart = startOfMonth();
   const monthEnd = endOfMonth();
+  const tenant = tenantWhere(currentUser);
 
   const [
     totalCustomers,
@@ -40,35 +42,39 @@ export async function getDashboardSummary() {
     overdueFollowUps,
     recentCallLogs
   ] = await Promise.all([
-    prisma.customer.count(),
+    prisma.customer.count({ where: tenant }),
     prisma.job.count({
       where: {
+        ...tenant,
         status: "SCHEDULED",
         scheduledDate: { gte: todayStart, lte: todayEnd }
       }
     }),
     prisma.followUp.count({
       where: {
+        ...tenant,
         status: "PENDING",
         followUpDate: { lte: todayEnd }
       }
     }),
     prisma.job.count({
       where: {
+        ...tenant,
         status: "COMPLETED",
         completionDate: { gte: monthStart, lte: monthEnd }
       }
     }),
-    prisma.job.count({ where: { status: "CANCELLED" } }),
+    prisma.job.count({ where: { ...tenant, status: "CANCELLED" } }),
     prisma.payment.aggregate({
-      where: { paymentStatus: { in: ["PAID", "PARTIAL_PAID"] } },
+      where: { ...tenant, paymentStatus: { in: ["PAID", "PARTIAL_PAID"] } },
       _sum: { paidAmount: true }
     }),
-    prisma.payment.count({ where: { paymentStatus: "PENDING" } }),
-    prisma.payment.count({ where: { paymentStatus: "PAID" } }),
-    prisma.payment.count({ where: { paymentStatus: "PARTIAL_PAID" } }),
+    prisma.payment.count({ where: { ...tenant, paymentStatus: "PENDING" } }),
+    prisma.payment.count({ where: { ...tenant, paymentStatus: "PAID" } }),
+    prisma.payment.count({ where: { ...tenant, paymentStatus: "PARTIAL_PAID" } }),
     prisma.job.findMany({
       where: {
+        ...tenant,
         scheduledDate: { gte: todayStart, lte: todayEnd }
       },
       include: {
@@ -80,6 +86,7 @@ export async function getDashboardSummary() {
     }),
     prisma.followUp.findMany({
       where: {
+        ...tenant,
         status: "PENDING",
         followUpDate: { lt: todayStart }
       },
@@ -90,6 +97,7 @@ export async function getDashboardSummary() {
       orderBy: { followUpDate: "asc" }
     }),
     prisma.callLog.findMany({
+      where: tenant,
       take: 8,
       include: {
         customer: true,
@@ -98,6 +106,14 @@ export async function getDashboardSummary() {
       orderBy: { createdAt: "desc" }
     })
   ]);
+
+  const system = isSystemAdmin(currentUser)
+    ? {
+        organizations: await prisma.organization.count(),
+        activeOrganizations: await prisma.organization.count({ where: { status: "ACTIVE" } }),
+        users: await prisma.user.count()
+      }
+    : undefined;
 
   return {
     cards: {
@@ -113,6 +129,7 @@ export async function getDashboardSummary() {
     },
     todaysJobs,
     overdueFollowUps,
-    recentCallLogs
+    recentCallLogs,
+    system
   };
 }

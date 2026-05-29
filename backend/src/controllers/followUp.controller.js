@@ -5,8 +5,8 @@ import {
 } from "../services/followUp.service.js";
 import { parseId } from "../utils/validation.js";
 
-export async function listPendingFollowUps(_req, res) {
-  const followUps = await getPendingFollowUps();
+export async function listPendingFollowUps(req, res) {
+  const followUps = await getPendingFollowUps(req.user);
   res.json({ followUps });
 }
 

@@ -1,5 +1,6 @@
 import prisma from "../config/prisma.js";
 import ApiError from "../utils/ApiError.js";
+import { tenantData, tenantWhere } from "../utils/tenant.js";
 import { validateEnum } from "../utils/validation.js";
 
 export const paymentStatuses = ["PENDING", "PARTIAL_PAID", "PAID", "CANCELLED", "REFUNDED"];
@@ -67,7 +68,7 @@ function calculateStatus(totalAmount, paidAmount, explicitStatus) {
   return "PARTIAL_PAID";
 }
 
-async function buildPaymentData(data, existingPayment) {
+async function buildPaymentData(data, existingPayment, currentUser) {
   validateEnum(data.paymentStatus, paymentStatuses, "Payment status");
   validateEnum(data.paymentMethod, paymentMethods, "Payment method");
 
@@ -78,7 +79,7 @@ async function buildPaymentData(data, existingPayment) {
     throw new ApiError(400, "Customer and job are required");
   }
 
-  const job = await prisma.job.findUnique({ where: { id: jobId } });
+  const job = await prisma.job.findFirst({ where: { id: jobId, ...tenantWhere(currentUser) } });
 
   if (!job) {
     throw new ApiError(404, "Job not found");
@@ -119,16 +120,17 @@ async function buildPaymentData(data, existingPayment) {
   };
 }
 
-export async function getPayments() {
+export async function getPayments(currentUser) {
   return prisma.payment.findMany({
+    where: tenantWhere(currentUser),
     include: paymentInclude,
     orderBy: { createdAt: "desc" }
   });
 }
 
-export async function getPaymentById(id) {
-  const payment = await prisma.payment.findUnique({
-    where: { id },
+export async function getPaymentById(id, currentUser) {
+  const payment = await prisma.payment.findFirst({
+    where: { id, ...tenantWhere(currentUser) },
     include: paymentInclude
   });
 
@@ -140,7 +142,7 @@ export async function getPaymentById(id) {
 }
 
 export async function createPayment(data, currentUser) {
-  const paymentData = await buildPaymentData(data);
+  const paymentData = await buildPaymentData(data, undefined, currentUser);
   const existingPayment = await prisma.payment.findUnique({
     where: { jobId: paymentData.jobId }
   });
@@ -153,6 +155,7 @@ export async function createPayment(data, currentUser) {
     const payment = await tx.payment.create({
       data: {
         ...paymentData,
+        ...tenantData(currentUser),
         invoiceNumber: temporaryInvoiceNumber(),
         createdById: currentUser?.id,
         updatedById: currentUser?.id
@@ -168,13 +171,13 @@ export async function createPayment(data, currentUser) {
 }
 
 export async function updatePayment(id, data, currentUser) {
-  const existingPayment = await prisma.payment.findUnique({ where: { id } });
+  const existingPayment = await prisma.payment.findFirst({ where: { id, ...tenantWhere(currentUser) } });
 
   if (!existingPayment) {
     throw new ApiError(404, "Payment not found");
   }
 
-  const paymentData = await buildPaymentData(data, existingPayment);
+  const paymentData = await buildPaymentData(data, existingPayment, currentUser);
 
   return prisma.payment.update({
     where: { id },
@@ -186,7 +189,7 @@ export async function updatePayment(id, data, currentUser) {
   });
 }
 
-export async function deletePayment(id) {
-  await getPaymentById(id);
+export async function deletePayment(id, currentUser) {
+  await getPaymentById(id, currentUser);
   await prisma.payment.delete({ where: { id } });
 }

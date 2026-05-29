@@ -7,13 +7,13 @@ import {
 } from "../services/customer.service.js";
 import { parseId } from "../utils/validation.js";
 
-export async function listCustomers(_req, res) {
-  const customers = await getCustomers();
+export async function listCustomers(req, res) {
+  const customers = await getCustomers(req.user);
   res.json({ customers });
 }
 
 export async function getCustomer(req, res) {
-  const customer = await getCustomerById(parseId(req.params.id, "Customer ID"));
+  const customer = await getCustomerById(parseId(req.params.id, "Customer ID"), req.user);
   res.json({ customer });
 }
 
@@ -28,6 +28,6 @@ export async function editCustomer(req, res) {
 }
 
 export async function removeCustomer(req, res) {
-  await deleteCustomer(parseId(req.params.id, "Customer ID"));
+  await deleteCustomer(parseId(req.params.id, "Customer ID"), req.user);
   res.status(204).send();
 }

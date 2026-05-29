@@ -3,62 +3,23 @@ import prisma from "../src/config/prisma.js";
 
 const password = await bcrypt.hash("123456", 10);
 
-const users = await Promise.all([
-  prisma.user.upsert({
-    where: { email: "seed.admin@jobflow.com" },
-    update: { role: "ADMIN", status: "ACTIVE" },
-    create: { name: "Seed Admin", email: "seed.admin@jobflow.com", password, role: "ADMIN", status: "ACTIVE" }
-  }),
-  prisma.user.upsert({
-    where: { email: "seed.agent1@jobflow.com" },
-    update: { role: "AGENT", status: "ACTIVE" },
-    create: { name: "Ayesha Agent", email: "seed.agent1@jobflow.com", password, role: "AGENT", status: "ACTIVE" }
-  }),
-  prisma.user.upsert({
-    where: { email: "seed.agent2@jobflow.com" },
-    update: { role: "AGENT", status: "ACTIVE" },
-    create: { name: "Hamza Agent", email: "seed.agent2@jobflow.com", password, role: "AGENT", status: "ACTIVE" }
-  }),
-  prisma.user.upsert({
-    where: { email: "seed.staff1@jobflow.com" },
-    update: { role: "STAFF", status: "ACTIVE" },
-    create: { name: "Usman Staff", email: "seed.staff1@jobflow.com", password, role: "STAFF", status: "ACTIVE" }
-  }),
-  prisma.user.upsert({
-    where: { email: "seed.staff2@jobflow.com" },
-    update: { role: "STAFF", status: "ACTIVE" },
-    create: { name: "Hina Staff", email: "seed.staff2@jobflow.com", password, role: "STAFF", status: "ACTIVE" }
-  })
-]);
+async function upsertOrganization(data) {
+  const existing = await prisma.organization.findFirst({ where: { name: data.name } });
 
-const agents = users.filter((user) => user.role === "AGENT");
-const staff = users.filter((user) => user.role === "STAFF");
+  if (existing) {
+    return prisma.organization.update({ where: { id: existing.id }, data });
+  }
 
-const customers = [
-  ["Green Valley Homes", "0301-1000001", "Gulberg", "Lahore", "Residential"],
-  ["Sunrise Foods", "0301-1000002", "DHA", "Karachi", "Commercial"],
-  ["Metro Clinic", "0301-1000003", "F-8", "Islamabad", "Commercial"],
-  ["Ali Traders", "0301-1000004", "Model Town", "Lahore", "Commercial"],
-  ["Bright School", "0301-1000005", "North Nazimabad", "Karachi", "Commercial"],
-  ["Omega Pharmacy", "0301-1000006", "Blue Area", "Islamabad", "Commercial"],
-  ["Hassan Residence", "0301-1000007", "Johar Town", "Lahore", "Residential"],
-  ["City Bakers", "0301-1000008", "Clifton", "Karachi", "Commercial"],
-  ["Nexus Office", "0301-1000009", "G-11", "Islamabad", "Commercial"],
-  ["Sapphire Villa", "0301-1000010", "Bahria Town", "Lahore", "Residential"],
-  ["Crescent Mart", "0301-1000011", "PECHS", "Karachi", "Commercial"],
-  ["Capital Gym", "0301-1000012", "I-8", "Islamabad", "Commercial"],
-  ["Zain Farmhouse", "0301-1000013", "Bedian", "Lahore", "Residential"],
-  ["Harbor Warehouse", "0301-1000014", "Korangi", "Karachi", "Industrial"],
-  ["Peak Restaurant", "0301-1000015", "F-7", "Islamabad", "Commercial"],
-  ["Mughal Furniture", "0301-1000016", "Township", "Lahore", "Commercial"],
-  ["Seaview Apartments", "0301-1000017", "Sea View", "Karachi", "Residential"],
-  ["Margalla Guest House", "0301-1000018", "E-11", "Islamabad", "Commercial"],
-  ["Liberty Electronics", "0301-1000019", "Liberty", "Lahore", "Commercial"],
-  ["Defence Residence", "0301-1000020", "DHA Phase 6", "Karachi", "Residential"]
-];
+  return prisma.organization.create({ data });
+}
 
-const statuses = ["COMPLETED", "SCHEDULED", "CANCELLED", "RESCHEDULED"];
-const callResponses = ["INTERESTED", "CALL_LATER", "NO_ANSWER", "NOT_INTERESTED", "WRONG_NUMBER"];
+async function upsertUser(organizationId, data) {
+  return prisma.user.upsert({
+    where: { email: data.email },
+    update: { ...data, password, organizationId },
+    create: { ...data, password, organizationId }
+  });
+}
 
 function dateUtc(year, month, day, hour = 10) {
   return new Date(Date.UTC(year, month - 1, day, hour, 0, 0));
@@ -70,136 +31,183 @@ function addDays(date, days) {
   return value;
 }
 
-function timeFor(index) {
-  return `${String(9 + (index % 8)).padStart(2, "0")}:${index % 2 === 0 ? "00" : "30"}`;
-}
+const systemAdmin = await prisma.user.upsert({
+  where: { email: "system.admin@jobflowplus.com" },
+  update: { name: "System Admin", password, role: "SYSTEM_ADMIN", status: "ACTIVE", organizationId: null },
+  create: { name: "System Admin", email: "system.admin@jobflowplus.com", password, role: "SYSTEM_ADMIN", status: "ACTIVE" }
+});
 
-const seededCustomers = [];
-const seededJobs = [];
-const seededFollowUps = [];
-const seededCallLogs = [];
+const organizations = [
+  await upsertOrganization({
+    name: "Sample Cleaning Company",
+    email: "admin@sample-cleaning.test",
+    phone: "0300-1000001",
+    address: "Lahore",
+    status: "ACTIVE",
+    plan: "PLUS"
+  }),
+  await upsertOrganization({
+    name: "Sample Maintenance Company",
+    email: "admin@sample-maintenance.test",
+    phone: "0300-2000001",
+    address: "Karachi",
+    status: "ACTIVE",
+    plan: "PLUS"
+  })
+];
 
-for (let index = 0; index < customers.length; index += 1) {
-  const [name, phone, area, city, installationType] = customers[index];
-  const existingCustomer = await prisma.customer.findFirst({ where: { phone } });
-  const customerData = {
-    name,
-    phone,
-    whatsapp: phone,
-    email: `seed.customer${index + 1}@example.com`,
-    address: `${area}, ${city}`,
-    area,
-    city,
-    jobPaymentAmount: 5000 + (index % 6) * 1500,
-    notes: "Seeded customer for JobFlow testing",
-    status: index % 6 === 0 ? "INACTIVE" : "ACTIVE"
-  };
+const organizationSeeds = [
+  {
+    organization: organizations[0],
+    users: [
+      { name: "Cleaning Admin", email: "admin@sample-cleaning.test", role: "ADMIN", status: "ACTIVE" },
+      { name: "Cleaning Agent", email: "agent@sample-cleaning.test", role: "AGENT", status: "ACTIVE" },
+      { name: "Cleaning Staff", email: "staff@sample-cleaning.test", role: "STAFF", status: "ACTIVE" }
+    ],
+    customers: [
+      { name: "Green Villa", phone: "0301-1100001", city: "Lahore", area: "DHA", systemType: "Deep Cleaning", jobPaymentAmount: 12000 },
+      { name: "Bright Office", phone: "0301-1100002", city: "Lahore", area: "Gulberg", systemType: "Office Cleaning", jobPaymentAmount: 18000 }
+    ]
+  },
+  {
+    organization: organizations[1],
+    users: [
+      { name: "Maintenance Admin", email: "admin@sample-maintenance.test", role: "ADMIN", status: "ACTIVE" },
+      { name: "Maintenance Agent", email: "agent@sample-maintenance.test", role: "AGENT", status: "ACTIVE" },
+      { name: "Maintenance Staff", email: "staff@sample-maintenance.test", role: "STAFF", status: "ACTIVE" }
+    ],
+    customers: [
+      { name: "Metro Clinic", phone: "0301-2200001", city: "Karachi", area: "Clifton", systemType: "AC Maintenance", jobPaymentAmount: 9000 },
+      { name: "Harbor Warehouse", phone: "0301-2200002", city: "Karachi", area: "Korangi", systemType: "Electrical Maintenance", jobPaymentAmount: 22000 }
+    ]
+  }
+];
 
-  const customer = existingCustomer
-    ? await prisma.customer.update({ where: { id: existingCustomer.id }, data: customerData })
-    : await prisma.customer.create({
-        data: {
-          ...customerData,
-          systems: {
-            create: [
-              {
-                systemType: "Solar",
-                systemSize: `${5 + (index % 6) * 2}kW`,
-                numberOfPanels: 10 + index,
-                installationType,
-                notes: "Seeded system detail"
-              }
-            ]
+const summary = { organizations: organizations.length, users: 1, customers: 0, jobs: 0, followUps: 0, callLogs: 0 };
+
+for (const seed of organizationSeeds) {
+  const users = await Promise.all(seed.users.map((user) => upsertUser(seed.organization.id, user)));
+  summary.users += users.length;
+  const admin = users.find((user) => user.role === "ADMIN");
+  const agent = users.find((user) => user.role === "AGENT");
+  const staff = users.find((user) => user.role === "STAFF");
+
+  for (let index = 0; index < seed.customers.length; index += 1) {
+    const customerSeed = seed.customers[index];
+    const existingCustomer = await prisma.customer.findFirst({
+      where: { organizationId: seed.organization.id, phone: customerSeed.phone }
+    });
+
+    const customerData = {
+      organizationId: seed.organization.id,
+      name: customerSeed.name,
+      phone: customerSeed.phone,
+      whatsapp: customerSeed.phone,
+      email: `customer${index + 1}@${seed.organization.name.toLowerCase().replaceAll(" ", "-")}.test`,
+      address: `${customerSeed.area}, ${customerSeed.city}`,
+      area: customerSeed.area,
+      city: customerSeed.city,
+      jobPaymentAmount: customerSeed.jobPaymentAmount,
+      notes: `Seeded for ${seed.organization.name}`,
+      status: "ACTIVE",
+      createdById: admin.id,
+      updatedById: admin.id
+    };
+
+    const customer = existingCustomer
+      ? await prisma.customer.update({ where: { id: existingCustomer.id }, data: customerData })
+      : await prisma.customer.create({
+          data: {
+            ...customerData,
+            systems: {
+              create: [{
+                organizationId: seed.organization.id,
+                systemType: customerSeed.systemType,
+                notes: `Seeded system for ${seed.organization.name}`
+              }]
+            }
           }
-        }
-      });
+        });
 
-  seededCustomers.push(customer);
+    summary.customers += 1;
 
-  const jobDates = [
-    dateUtc(2025, 12, 3 + (index % 18), 10),
-    dateUtc(2026, 2, 2 + (index % 20), 11),
-    index % 4 === 0 ? dateUtc(2026, 5, 17, 10 + (index % 5)) : dateUtc(2026, 5, 18 + (index % 10), 12)
-  ];
-
-  for (let jobIndex = 0; jobIndex < jobDates.length; jobIndex += 1) {
-    const scheduledDate = jobDates[jobIndex];
-    const status = jobIndex < 2
-      ? (index % 5 === 0 ? "CANCELLED" : "COMPLETED")
-      : index % 4 === 0
-        ? "SCHEDULED"
-        : statuses[index % statuses.length];
-    const completionDate = status === "COMPLETED" ? scheduledDate : null;
-    const remarks = `Seed job ${jobIndex + 1} for ${phone}`;
-    const existingJob = await prisma.job.findFirst({ where: { customerId: customer.id, remarks } });
-
+    const scheduledDate = dateUtc(2026, 6, 1 + index, 10 + index);
+    const existingJob = await prisma.job.findFirst({
+      where: { organizationId: seed.organization.id, customerId: customer.id, remarks: `Seed job for ${customer.name}` }
+    });
     const jobData = {
+      organizationId: seed.organization.id,
       customerId: customer.id,
-      assignedAgentId: agents[index % agents.length].id,
-      assignedStaffId: staff[(index + jobIndex) % staff.length].id,
+      assignedAgentId: agent.id,
+      assignedStaffId: staff.id,
       scheduledDate,
-      scheduledTime: timeFor(index + jobIndex),
-      status,
-      completionDate,
-      remarks
+      scheduledTime: index === 0 ? "10:00" : "14:00",
+      status: index === 0 ? "SCHEDULED" : "COMPLETED",
+      completionDate: index === 0 ? null : scheduledDate,
+      remarks: `Seed job for ${customer.name}`,
+      createdById: admin.id,
+      updatedById: admin.id,
+      completedById: index === 0 ? null : staff.id
     };
 
     const job = existingJob
       ? await prisma.job.update({ where: { id: existingJob.id }, data: jobData })
       : await prisma.job.create({ data: jobData });
 
-    seededJobs.push(job);
+    summary.jobs += 1;
 
-    if (status === "COMPLETED") {
-      const followUpDate = addDays(completionDate, 15);
-      const existingFollowUp = await prisma.followUp.findFirst({ where: { jobId: job.id } });
-      const followUpStatus = index % 4 === 0 ? "DONE" : "PENDING";
-      const followUpData = {
-        customerId: customer.id,
-        jobId: job.id,
-        followUpDate,
-        status: followUpStatus,
-        notes: `${followUpStatus === "PENDING" ? "Pending" : "Done"} seeded follow-up for ${name}`
-      };
-
-      const followUp = existingFollowUp
-        ? await prisma.followUp.update({ where: { id: existingFollowUp.id }, data: followUpData })
-        : await prisma.followUp.create({ data: followUpData });
-
-      seededFollowUps.push(followUp);
-    }
-  }
-
-  for (let callIndex = 0; callIndex < 2; callIndex += 1) {
-    const notes = `Seed call ${callIndex + 1} for ${phone}`;
-    const existingCallLog = await prisma.callLog.findFirst({ where: { customerId: customer.id, notes } });
-    const callLogData = {
+    const followUpDate = addDays(scheduledDate, index === 0 ? 2 : 15);
+    const existingFollowUp = await prisma.followUp.findFirst({
+      where: { organizationId: seed.organization.id, customerId: customer.id, jobId: job.id }
+    });
+    const followUpData = {
+      organizationId: seed.organization.id,
       customerId: customer.id,
-      agentId: agents[(index + callIndex) % agents.length].id,
-      response: callResponses[(index + callIndex) % callResponses.length],
-      notes,
-      nextCallDate: callIndex === 0 ? addDays(dateUtc(2026, 5, 17), (index % 7) + 1) : null
+      jobId: job.id,
+      followUpDate,
+      status: "PENDING",
+      notes: `Tenant-specific follow-up for ${customer.name}`,
+      createdById: admin.id,
+      updatedById: admin.id
     };
 
-    const callLog = existingCallLog
+    existingFollowUp
+      ? await prisma.followUp.update({ where: { id: existingFollowUp.id }, data: followUpData })
+      : await prisma.followUp.create({ data: followUpData });
+
+    summary.followUps += 1;
+
+    const callNotes = `Tenant-specific call for ${customer.name}`;
+    const existingCallLog = await prisma.callLog.findFirst({
+      where: { organizationId: seed.organization.id, customerId: customer.id, notes: callNotes }
+    });
+    const callLogData = {
+      organizationId: seed.organization.id,
+      customerId: customer.id,
+      agentId: agent.id,
+      response: index === 0 ? "INTERESTED" : "CALL_LATER",
+      notes: callNotes,
+      nextCallDate: addDays(new Date(), 3 + index),
+      createdById: agent.id,
+      updatedById: agent.id
+    };
+
+    existingCallLog
       ? await prisma.callLog.update({ where: { id: existingCallLog.id }, data: callLogData })
       : await prisma.callLog.create({ data: callLogData });
 
-    seededCallLogs.push(callLog);
+    summary.callLogs += 1;
   }
 }
 
 console.log(JSON.stringify({
-  customers: seededCustomers.length,
-  jobs: seededJobs.length,
-  followUps: seededFollowUps.length,
-  callLogs: seededCallLogs.length,
+  ...summary,
   logins: {
-    admin: "seed.admin@jobflow.com / 123456",
-    agent1: "seed.agent1@jobflow.com / 123456",
-    agent2: "seed.agent2@jobflow.com / 123456",
-    staff1: "seed.staff1@jobflow.com / 123456",
-    staff2: "seed.staff2@jobflow.com / 123456"
+    systemAdmin: `${systemAdmin.email} / 123456`,
+    cleaningAdmin: "admin@sample-cleaning.test / 123456",
+    cleaningAgent: "agent@sample-cleaning.test / 123456",
+    maintenanceAdmin: "admin@sample-maintenance.test / 123456",
+    maintenanceAgent: "agent@sample-maintenance.test / 123456"
   }
 }, null, 2));
 

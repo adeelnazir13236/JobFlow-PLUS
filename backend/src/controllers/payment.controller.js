@@ -7,13 +7,13 @@ import {
 } from "../services/payment.service.js";
 import { parseId } from "../utils/validation.js";
 
-export async function listPayments(_req, res) {
-  const payments = await getPayments();
+export async function listPayments(req, res) {
+  const payments = await getPayments(req.user);
   res.json({ payments });
 }
 
 export async function getPayment(req, res) {
-  const payment = await getPaymentById(parseId(req.params.id, "Payment ID"));
+  const payment = await getPaymentById(parseId(req.params.id, "Payment ID"), req.user);
   res.json({ payment });
 }
 
@@ -28,6 +28,6 @@ export async function editPayment(req, res) {
 }
 
 export async function removePayment(req, res) {
-  await deletePayment(parseId(req.params.id, "Payment ID"));
+  await deletePayment(parseId(req.params.id, "Payment ID"), req.user);
   res.status(204).send();
 }

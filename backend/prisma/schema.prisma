@@ -7,32 +7,58 @@ datasource db {
 }
 
 model User {
-  id               Int        @id @default(autoincrement())
+  id               Int           @id @default(autoincrement())
+  organizationId   Int?          @map("organization_id")
   name             String
-  email            String     @unique
+  email            String        @unique
   password         String
-  role             UserRole   @default(STAFF)
-  status           String     @default("ACTIVE")
-  assignedJobs     Job[]      @relation("AgentJobs")
-  staffJobs        Job[]      @relation("StaffJobs")
+  role             UserRole      @default(STAFF)
+  status           String        @default("ACTIVE")
+  organization     Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  assignedJobs     Job[]         @relation("AgentJobs")
+  staffJobs        Job[]         @relation("StaffJobs")
   callLogs         CallLog[]
-  createdCustomers Customer[] @relation("CustomerCreatedBy")
-  updatedCustomers Customer[] @relation("CustomerUpdatedBy")
-  createdJobs      Job[]      @relation("JobCreatedBy")
-  updatedJobs      Job[]      @relation("JobUpdatedBy")
-  completedJobs    Job[]      @relation("JobCompletedBy")
-  createdPayments  Payment[]  @relation("PaymentCreatedBy")
-  updatedPayments  Payment[]  @relation("PaymentUpdatedBy")
-  createdCallLogs  CallLog[]  @relation("CallLogCreatedBy")
-  updatedCallLogs  CallLog[]  @relation("CallLogUpdatedBy")
-  createdFollowUps FollowUp[] @relation("FollowUpCreatedBy")
-  updatedFollowUps FollowUp[] @relation("FollowUpUpdatedBy")
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  createdCustomers Customer[]    @relation("CustomerCreatedBy")
+  updatedCustomers Customer[]    @relation("CustomerUpdatedBy")
+  createdJobs      Job[]         @relation("JobCreatedBy")
+  updatedJobs      Job[]         @relation("JobUpdatedBy")
+  completedJobs    Job[]         @relation("JobCompletedBy")
+  createdPayments  Payment[]     @relation("PaymentCreatedBy")
+  updatedPayments  Payment[]     @relation("PaymentUpdatedBy")
+  createdCallLogs  CallLog[]     @relation("CallLogCreatedBy")
+  updatedCallLogs  CallLog[]     @relation("CallLogUpdatedBy")
+  createdFollowUps FollowUp[]    @relation("FollowUpCreatedBy")
+  updatedFollowUps FollowUp[]    @relation("FollowUpUpdatedBy")
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([organizationId])
+}
+
+model Organization {
+  id              Int              @id @default(autoincrement())
+  name            String
+  email           String?
+  phone           String?
+  address         String?
+  status          String           @default("ACTIVE")
+  plan            String           @default("FREE")
+  users           User[]
+  customers       Customer[]
+  customerSystems CustomerSystem[]
+  jobs            Job[]
+  payments        Payment[]
+  callLogs        CallLog[]
+  followUps       FollowUp[]
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  @@map("organizations")
 }
 
 model Customer {
   id               Int              @id @default(autoincrement())
+  organizationId   Int              @map("organization_id")
   name             String
   phone            String
   whatsapp         String?
@@ -45,6 +71,7 @@ model Customer {
   status           String           @default("ACTIVE")
   createdById      Int?
   updatedById      Int?
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   systems          CustomerSystem[]
   jobs             Job[]
   payments         Payment[]
@@ -56,6 +83,7 @@ model Customer {
   updatedAt        DateTime         @updatedAt
 
   @@index([phone])
+  @@index([organizationId])
   @@index([city])
   @@index([status])
   @@index([createdById])
@@ -63,42 +91,48 @@ model Customer {
 }
 
 model CustomerSystem {
-  id               Int      @id @default(autoincrement())
+  id               Int          @id @default(autoincrement())
+  organizationId   Int          @map("organization_id")
   customerId       Int
   systemType       String
   systemSize       String?
   numberOfPanels   Int?
   installationType String?
-  notes            String?  @db.Text
-  customer         Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  notes            String?      @db.Text
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer         Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
+  @@index([organizationId])
   @@index([customerId])
 }
 
 model Job {
-  id              Int        @id @default(autoincrement())
+  id              Int          @id @default(autoincrement())
+  organizationId  Int          @map("organization_id")
   customerId      Int
   assignedAgentId Int?
   assignedStaffId Int?
   scheduledDate   DateTime
   scheduledTime   String
-  status          JobStatus  @default(SCHEDULED)
+  status          JobStatus    @default(SCHEDULED)
   completionDate  DateTime?
-  remarks         String?    @db.Text
+  remarks         String?      @db.Text
   createdById     Int?
   updatedById     Int?
   completedById   Int?
-  customer        Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  assignedAgent   User?      @relation("AgentJobs", fields: [assignedAgentId], references: [id], onDelete: SetNull)
-  assignedStaff   User?      @relation("StaffJobs", fields: [assignedStaffId], references: [id], onDelete: SetNull)
-  createdBy       User?      @relation("JobCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  updatedBy       User?      @relation("JobUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
-  completedBy     User?      @relation("JobCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer        Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  assignedAgent   User?        @relation("AgentJobs", fields: [assignedAgentId], references: [id], onDelete: SetNull)
+  assignedStaff   User?        @relation("StaffJobs", fields: [assignedStaffId], references: [id], onDelete: SetNull)
+  createdBy       User?        @relation("JobCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy       User?        @relation("JobUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  completedBy     User?        @relation("JobCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
   followUps       FollowUp[]
   payments        Payment[]
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
+  @@index([organizationId])
   @@index([customerId])
   @@index([assignedAgentId])
   @@index([assignedStaffId])
@@ -110,26 +144,29 @@ model Job {
 }
 
 model Payment {
-  id            Int           @id @default(autoincrement())
-  invoiceNumber String        @unique
-  customerId    Int
-  jobId         Int           @unique
-  totalAmount   Decimal       @db.Decimal(12, 2)
-  paidAmount    Decimal       @default(0) @db.Decimal(12, 2)
-  balanceAmount Decimal       @default(0) @db.Decimal(12, 2)
-  paymentMethod PaymentMethod @default(CASH)
-  paymentStatus PaymentStatus @default(PENDING)
-  paymentDate   DateTime?
-  remarks       String?       @db.Text
-  createdById   Int?
-  updatedById   Int?
-  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  job           Job           @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  createdBy     User?         @relation("PaymentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  updatedBy     User?         @relation("PaymentUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id             Int           @id @default(autoincrement())
+  organizationId Int           @map("organization_id")
+  invoiceNumber  String        @unique
+  customerId     Int
+  jobId          Int           @unique
+  totalAmount    Decimal       @db.Decimal(12, 2)
+  paidAmount     Decimal       @default(0) @db.Decimal(12, 2)
+  balanceAmount  Decimal       @default(0) @db.Decimal(12, 2)
+  paymentMethod  PaymentMethod @default(CASH)
+  paymentStatus  PaymentStatus @default(PENDING)
+  paymentDate    DateTime?
+  remarks        String?       @db.Text
+  createdById    Int?
+  updatedById    Int?
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer       Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  job            Job           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  createdBy      User?         @relation("PaymentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy      User?         @relation("PaymentUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
+  @@index([organizationId])
   @@index([customerId])
   @@index([jobId])
   @@index([paymentStatus])
@@ -139,21 +176,24 @@ model Payment {
 }
 
 model CallLog {
-  id           Int          @id @default(autoincrement())
-  customerId   Int
-  agentId      Int?
-  response     CallResponse
-  notes        String?      @db.Text
-  nextCallDate DateTime?
-  createdById  Int?
-  updatedById  Int?
-  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  agent        User?        @relation(fields: [agentId], references: [id], onDelete: SetNull)
-  createdBy    User?        @relation("CallLogCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  updatedBy    User?        @relation("CallLogUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @map("organization_id")
+  customerId     Int
+  agentId        Int?
+  response       CallResponse
+  notes          String?      @db.Text
+  nextCallDate   DateTime?
+  createdById    Int?
+  updatedById    Int?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer       Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  agent          User?        @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  createdBy      User?        @relation("CallLogCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy      User?        @relation("CallLogUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
+  @@index([organizationId])
   @@index([customerId])
   @@index([agentId])
   @@index([response])
@@ -163,21 +203,24 @@ model CallLog {
 }
 
 model FollowUp {
-  id           Int            @id @default(autoincrement())
-  customerId   Int
-  jobId        Int?
-  followUpDate DateTime
-  status       FollowUpStatus @default(PENDING)
-  notes        String?        @db.Text
-  createdById  Int?
-  updatedById  Int?
-  customer     Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  job          Job?           @relation(fields: [jobId], references: [id], onDelete: SetNull)
-  createdBy    User?          @relation("FollowUpCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  updatedBy    User?          @relation("FollowUpUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  id             Int            @id @default(autoincrement())
+  organizationId Int            @map("organization_id")
+  customerId     Int
+  jobId          Int?
+  followUpDate   DateTime
+  status         FollowUpStatus @default(PENDING)
+  notes          String?        @db.Text
+  createdById    Int?
+  updatedById    Int?
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer       Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  job            Job?           @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  createdBy      User?          @relation("FollowUpCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy      User?          @relation("FollowUpUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
+  @@index([organizationId])
   @@index([customerId])
   @@index([jobId])
   @@index([followUpDate])
@@ -187,6 +230,7 @@ model FollowUp {
 }
 
 enum UserRole {
+  SYSTEM_ADMIN
   ADMIN
   AGENT
   STAFF
