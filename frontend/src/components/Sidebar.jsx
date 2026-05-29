@@ -61,20 +61,34 @@ const groups = [
 
 export default function Sidebar({ open, onClose }) {
   const [badges, setBadges] = useState({ jobs: 0, followUps: 0, payments: 0 });
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => JSON.parse(localStorage.getItem("user") || "null"));
 
   useEffect(() => {
     let mounted = true;
 
-    async function loadSidebarData() {
+    async function loadCurrentUser() {
       try {
-        const [dashboard, user] = await Promise.all([getDashboard(), getMe()]);
+        const user = await getMe();
 
         if (!mounted) {
           return;
         }
 
         setCurrentUser(user);
+        localStorage.setItem("user", JSON.stringify(user));
+      } catch {
+        // Auth interceptor handles expired sessions.
+      }
+    }
+
+    async function loadBadges() {
+      try {
+        const dashboard = await getDashboard();
+
+        if (!mounted) {
+          return;
+        }
+
         setBadges({
           jobs: dashboard.cards.todaysScheduledJobs || 0,
           followUps: dashboard.cards.pendingFollowUps || 0,
@@ -85,7 +99,8 @@ export default function Sidebar({ open, onClose }) {
       }
     }
 
-    loadSidebarData();
+    loadCurrentUser();
+    loadBadges();
 
     return () => {
       mounted = false;
