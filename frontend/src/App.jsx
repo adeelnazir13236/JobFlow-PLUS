@@ -5,6 +5,7 @@ import AddCustomer from "./pages/AddCustomer";
 import AddOrganization from "./pages/AddOrganization";
 import AddOrganizationAdmin from "./pages/AddOrganizationAdmin";
 import AddPayment from "./pages/AddPayment";
+import AccessDenied from "./pages/AccessDenied";
 import Calendar from "./pages/Calendar";
 import CallLogs from "./pages/CallLogs";
 import CustomerDetails from "./pages/CustomerDetails";
@@ -37,6 +38,16 @@ function SystemAdminRoute() {
   return <Outlet />;
 }
 
+function FeatureRoute({ feature }) {
+  const user = JSON.parse(localStorage.getItem("user") || "null");
+
+  if (user?.role === "SYSTEM_ADMIN" || user?.features?.includes(feature)) {
+    return <Outlet />;
+  }
+
+  return <Navigate to="/access-denied" replace />;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -44,21 +55,32 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/customers" element={<Customers />} />
-          <Route path="/customers/add" element={<AddCustomer />} />
-          <Route path="/customers/:id" element={<CustomerDetails />} />
-          <Route path="/customers/:id/edit" element={<EditCustomer />} />
-          <Route path="/jobs" element={<Jobs />} />
-          <Route path="/jobs/schedule" element={<ScheduleJob />} />
-          <Route path="/jobs/:id" element={<JobDetails />} />
-          <Route path="/jobs/:id/edit" element={<EditJob />} />
-          <Route path="/payments" element={<Payments />} />
-          <Route path="/payments/add" element={<AddPayment />} />
-          <Route path="/payments/:id" element={<PaymentDetails />} />
-          <Route path="/payments/:id/edit" element={<EditPayment />} />
-          <Route path="/calendar" element={<Calendar />} />
-          <Route path="/call-logs" element={<CallLogs />} />
-          <Route path="/followups" element={<FollowUps />} />
+          <Route path="/access-denied" element={<AccessDenied />} />
+          <Route element={<FeatureRoute feature="CUSTOMERS" />}>
+            <Route path="/customers" element={<Customers />} />
+            <Route path="/customers/add" element={<AddCustomer />} />
+            <Route path="/customers/:id" element={<CustomerDetails />} />
+            <Route path="/customers/:id/edit" element={<EditCustomer />} />
+          </Route>
+          <Route element={<FeatureRoute feature="JOBS" />}>
+            <Route path="/jobs" element={<Jobs />} />
+            <Route path="/jobs/schedule" element={<ScheduleJob />} />
+            <Route path="/jobs/:id" element={<JobDetails />} />
+            <Route path="/jobs/:id/edit" element={<EditJob />} />
+            <Route path="/calendar" element={<Calendar />} />
+          </Route>
+          <Route element={<FeatureRoute feature="PAYMENTS" />}>
+            <Route path="/payments" element={<Payments />} />
+            <Route path="/payments/add" element={<AddPayment />} />
+            <Route path="/payments/:id" element={<PaymentDetails />} />
+            <Route path="/payments/:id/edit" element={<EditPayment />} />
+          </Route>
+          <Route element={<FeatureRoute feature="CALL_LOGS" />}>
+            <Route path="/call-logs" element={<CallLogs />} />
+          </Route>
+          <Route element={<FeatureRoute feature="FOLLOW_UPS" />}>
+            <Route path="/followups" element={<FollowUps />} />
+          </Route>
           <Route element={<SystemAdminRoute />}>
             <Route path="/system" element={<SystemDashboard />} />
             <Route path="/organizations" element={<Organizations />} />

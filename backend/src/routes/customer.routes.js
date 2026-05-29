@@ -9,10 +9,12 @@ import {
 import { listCustomerCallLogs } from "../controllers/callLog.controller.js";
 import { authenticate, authorize } from "../middleware/auth.js";
 import asyncHandler from "../utils/asyncHandler.js";
+import { requireFeature } from "../utils/features.js";
 
 const router = Router();
 
 router.use(authenticate);
+router.use(requireFeature("CUSTOMERS"));
 
 router.get("/", authorize("ADMIN", "AGENT", "STAFF"), asyncHandler(listCustomers));
 router.get("/:id", authorize("ADMIN", "AGENT", "STAFF"), asyncHandler(getCustomer));

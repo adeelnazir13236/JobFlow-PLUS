@@ -9,10 +9,12 @@ import {
 } from "../controllers/job.controller.js";
 import { authenticate, authorize } from "../middleware/auth.js";
 import asyncHandler from "../utils/asyncHandler.js";
+import { requireFeature } from "../utils/features.js";
 
 const router = Router();
 
 router.use(authenticate);
+router.use(requireFeature("JOBS"));
 
 router.get("/", authorize("ADMIN", "AGENT", "STAFF"), asyncHandler(listJobs));
 router.get("/calendar", authorize("ADMIN", "AGENT", "STAFF"), asyncHandler(listCalendarJobs));

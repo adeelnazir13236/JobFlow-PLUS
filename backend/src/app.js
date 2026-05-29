@@ -8,6 +8,7 @@ import followUpRoutes from "./routes/followUp.routes.js";
 import jobRoutes from "./routes/job.routes.js";
 import organizationRoutes from "./routes/organization.routes.js";
 import paymentRoutes from "./routes/payment.routes.js";
+import planRoutes from "./routes/plan.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import { errorHandler, notFound } from "./middleware/error.js";
 
@@ -43,6 +44,7 @@ app.use("/api/customers", customerRoutes);
 app.use("/api/jobs", jobRoutes);
 app.use("/api/organizations", organizationRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/plans", planRoutes);
 app.use("/api/call-logs", callLogRoutes);
 app.use("/api/followups", followUpRoutes);
 

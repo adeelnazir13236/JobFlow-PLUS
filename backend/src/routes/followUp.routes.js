@@ -6,10 +6,12 @@ import {
 } from "../controllers/followUp.controller.js";
 import { authenticate, authorize } from "../middleware/auth.js";
 import asyncHandler from "../utils/asyncHandler.js";
+import { requireFeature } from "../utils/features.js";
 
 const router = Router();
 
 router.use(authenticate);
+router.use(requireFeature("FOLLOW_UPS"));
 
 router.get("/pending", authorize("ADMIN", "AGENT", "STAFF"), asyncHandler(listPendingFollowUps));
 router.put("/:id/call", authorize("ADMIN", "AGENT", "STAFF"), asyncHandler(callFollowUp));

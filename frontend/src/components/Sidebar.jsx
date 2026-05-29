@@ -19,26 +19,26 @@ const groups = [
   {
     label: "Overview",
     links: [
-      { to: "/", label: "Dashboard", icon: DashboardIcon },
+      { to: "/", label: "Dashboard", icon: DashboardIcon, feature: "DASHBOARD" },
       { to: "/calendar", label: "Calendar", icon: CalendarIcon }
     ]
   },
   {
     label: "Operations",
     links: [
-      { to: "/customers", label: "Customers", icon: CustomersIcon },
-      { to: "/customers/add", label: "Add Customer", icon: AddIcon },
-      { to: "/jobs", label: "Jobs", icon: JobsIcon },
-      { to: "/jobs/schedule", label: "Schedule Job", icon: AddIcon },
-      { to: "/call-logs", label: "Call Logs", icon: PhoneIcon },
-      { to: "/followups", label: "Follow-ups", icon: FollowUpIcon }
+      { to: "/customers", label: "Customers", icon: CustomersIcon, feature: "CUSTOMERS" },
+      { to: "/customers/add", label: "Add Customer", icon: AddIcon, feature: "CUSTOMERS" },
+      { to: "/jobs", label: "Jobs", icon: JobsIcon, feature: "JOBS" },
+      { to: "/jobs/schedule", label: "Schedule Job", icon: AddIcon, feature: "JOBS" },
+      { to: "/call-logs", label: "Call Logs", icon: PhoneIcon, feature: "CALL_LOGS" },
+      { to: "/followups", label: "Follow-ups", icon: FollowUpIcon, feature: "FOLLOW_UPS" }
     ]
   },
   {
     label: "Finance",
     links: [
-      { to: "/payments", label: "Payments", icon: PaymentIcon },
-      { to: "/payments/add", label: "Add Payment", icon: AddIcon }
+      { to: "/payments", label: "Payments", icon: PaymentIcon, feature: "PAYMENTS" },
+      { to: "/payments/add", label: "Add Payment", icon: AddIcon, feature: "PAYMENTS" }
     ]
   },
   {
@@ -127,6 +127,8 @@ export default function Sidebar({ open, onClose }) {
 
     return true;
   });
+  const userFeatures = new Set(currentUser?.features || []);
+  const canSeeLink = (link) => currentUser?.role === "SYSTEM_ADMIN" || !link.feature || userFeatures.has(link.feature);
 
   return (
     <>
@@ -155,7 +157,7 @@ export default function Sidebar({ open, onClose }) {
                 {group.label}
               </div>
               <div className="space-y-1">
-                {group.links.map((link) => (
+                {group.links.filter(canSeeLink).map((link) => (
                   <NavLink key={link.to} to={link.to} className={linkClass} onClick={onClose} end={link.to === "/"}>
                     {({ isActive }) => (
                       <>

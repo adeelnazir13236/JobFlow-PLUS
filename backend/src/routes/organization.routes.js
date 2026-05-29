@@ -124,6 +124,15 @@ router.get("/:id", asyncHandler(async (req, res) => {
         },
         orderBy: { createdAt: "desc" }
       },
+      subscriptions: {
+        take: 1,
+        include: { plan: true },
+        orderBy: { createdAt: "desc" }
+      },
+      featureOverrides: {
+        include: { feature: true },
+        orderBy: { createdAt: "desc" }
+      },
       _count: {
         select: {
           users: true,
@@ -188,6 +197,69 @@ router.patch("/:id/status", asyncHandler(async (req, res) => {
   });
 
   res.json({ organization });
+}));
+
+router.put("/:id/subscription", asyncHandler(async (req, res) => {
+  const organizationId = parseId(req.params.id, "Organization ID");
+  const planId = parseId(req.body.planId, "Plan ID");
+  validateEnum(req.body.status, ["ACTIVE", "INACTIVE", "CANCELLED", "EXPIRED"], "Subscription status");
+  validateEnum(req.body.billingCycle, ["MONTHLY", "YEARLY"], "Billing cycle");
+
+  const plan = await prisma.plan.findUnique({ where: { id: planId } });
+  if (!plan || plan.status !== "ACTIVE") {
+    throw new ApiError(400, "A valid active plan is required");
+  }
+
+  await prisma.organizationSubscription.updateMany({
+    where: { organizationId, status: "ACTIVE" },
+    data: { status: "INACTIVE" }
+  });
+
+  const subscription = await prisma.organizationSubscription.create({
+    data: {
+      organizationId,
+      planId,
+      status: req.body.status || "ACTIVE",
+      billingCycle: req.body.billingCycle || "MONTHLY",
+      startDate: req.body.startDate ? new Date(req.body.startDate) : new Date(),
+      endDate: req.body.endDate ? new Date(req.body.endDate) : null
+    },
+    include: { plan: true }
+  });
+
+  await prisma.organization.update({
+    where: { id: organizationId },
+    data: { plan: plan.code }
+  });
+
+  res.json({ subscription });
+}));
+
+router.put("/:id/features", asyncHandler(async (req, res) => {
+  const organizationId = parseId(req.params.id, "Organization ID");
+  const overrides = Array.isArray(req.body.overrides) ? req.body.overrides : [];
+
+  await prisma.$transaction(async (tx) => {
+    for (const override of overrides) {
+      await tx.organizationFeature.upsert({
+        where: { organizationId_featureId: { organizationId, featureId: Number(override.featureId) } },
+        update: { enabled: Boolean(override.enabled), source: override.source || "MANUAL" },
+        create: {
+          organizationId,
+          featureId: Number(override.featureId),
+          enabled: Boolean(override.enabled),
+          source: override.source || "MANUAL"
+        }
+      });
+    }
+  });
+
+  const featureOverrides = await prisma.organizationFeature.findMany({
+    where: { organizationId },
+    include: { feature: true }
+  });
+
+  res.json({ featureOverrides });
 }));
 
 export default router;

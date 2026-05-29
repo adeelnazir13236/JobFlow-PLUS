@@ -6,6 +6,7 @@ import ApiError from "../utils/ApiError.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { isSystemAdmin, tenantWhere, userSelectWithOrganization } from "../utils/tenant.js";
 import { parseId, validateEmail, validateEnum } from "../utils/validation.js";
+import { getFeatureCodesForUser } from "../utils/features.js";
 
 const router = Router();
 const userRoles = ["ADMIN", "AGENT", "STAFF"];
@@ -107,6 +108,8 @@ router.get("/me", authenticate, asyncHandler(async (req, res) => {
   if (!user) {
     throw new ApiError(404, "User not found");
   }
+
+  user.features = await getFeatureCodesForUser(user);
 
   return res.json({ user });
 }));

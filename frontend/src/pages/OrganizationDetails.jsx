@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { getOrganization } from "../api/organizationService";
+import { getFeatures, getPlans } from "../api/planService";
+import { getOrganization, updateOrganizationFeatureOverrides, updateOrganizationSubscription } from "../api/organizationService";
 import Alert from "../components/Alert";
 import Button from "../components/Button";
 import PageHeader from "../components/PageHeader";
@@ -14,6 +15,10 @@ function formatDate(value) {
 export default function OrganizationDetails() {
   const { id } = useParams();
   const [organization, setOrganization] = useState(null);
+  const [plans, setPlans] = useState([]);
+  const [features, setFeatures] = useState([]);
+  const [subscriptionForm, setSubscriptionForm] = useState({ planId: "", status: "ACTIVE", billingCycle: "MONTHLY", startDate: "", endDate: "" });
+  const [overrideState, setOverrideState] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -25,9 +30,21 @@ export default function OrganizationDetails() {
         setLoading(true);
         setError("");
         const result = await getOrganization(id);
+        const [planRows, featureRows] = await Promise.all([getPlans(), getFeatures()]);
 
         if (mounted) {
           setOrganization(result);
+          setPlans(planRows.filter((plan) => plan.status === "ACTIVE"));
+          setFeatures(featureRows.filter((feature) => feature.status === "ACTIVE"));
+          const currentSubscription = result.subscriptions?.[0];
+          setSubscriptionForm({
+            planId: currentSubscription?.planId || "",
+            status: currentSubscription?.status || "ACTIVE",
+            billingCycle: currentSubscription?.billingCycle || "MONTHLY",
+            startDate: currentSubscription?.startDate ? currentSubscription.startDate.slice(0, 10) : "",
+            endDate: currentSubscription?.endDate ? currentSubscription.endDate.slice(0, 10) : ""
+          });
+          setOverrideState(Object.fromEntries((result.featureOverrides || []).map((override) => [override.featureId, override.enabled])));
         }
       } catch (err) {
         setError(err.response?.data?.message || "Unable to load organization");
@@ -65,6 +82,23 @@ export default function OrganizationDetails() {
     ["Call Logs", organization._count?.callLogs || 0],
     ["Payments", organization._count?.payments || 0]
   ];
+
+  async function saveSubscription(event) {
+    event.preventDefault();
+    const subscription = await updateOrganizationSubscription(organization.id, subscriptionForm);
+    setSubscriptionForm({
+      planId: subscription.planId,
+      status: subscription.status,
+      billingCycle: subscription.billingCycle,
+      startDate: subscription.startDate ? subscription.startDate.slice(0, 10) : "",
+      endDate: subscription.endDate ? subscription.endDate.slice(0, 10) : ""
+    });
+  }
+
+  async function saveOverrides() {
+    const overrides = Object.entries(overrideState).map(([featureId, enabled]) => ({ featureId: Number(featureId), enabled }));
+    await updateOrganizationFeatureOverrides(organization.id, overrides);
+  }
 
   return (
     <>
@@ -121,6 +155,34 @@ export default function OrganizationDetails() {
                 <div className="text-sm font-medium text-slate-500">{label}</div>
                 <div className="mt-2 text-3xl font-semibold text-slate-950">{value}</div>
               </div>
+            ))}
+          </div>
+        </section>
+      </div>
+      <div className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="mb-4 text-base font-semibold text-slate-950">Subscription</h2>
+          <form className="space-y-4" onSubmit={saveSubscription}>
+            <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Plan</span><select className="interactive-field h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" value={subscriptionForm.planId} onChange={(event) => setSubscriptionForm({ ...subscriptionForm, planId: event.target.value })} required><option value="">Select plan</option>{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select></label>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Status</span><select className="interactive-field h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" value={subscriptionForm.status} onChange={(event) => setSubscriptionForm({ ...subscriptionForm, status: event.target.value })}><option value="ACTIVE">ACTIVE</option><option value="INACTIVE">INACTIVE</option><option value="CANCELLED">CANCELLED</option><option value="EXPIRED">EXPIRED</option></select></label>
+              <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Billing Cycle</span><select className="interactive-field h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" value={subscriptionForm.billingCycle} onChange={(event) => setSubscriptionForm({ ...subscriptionForm, billingCycle: event.target.value })}><option value="MONTHLY">MONTHLY</option><option value="YEARLY">YEARLY</option></select></label>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <input className="interactive-field h-10 rounded-md border border-slate-300 px-3 text-sm" type="date" value={subscriptionForm.startDate} onChange={(event) => setSubscriptionForm({ ...subscriptionForm, startDate: event.target.value })} />
+              <input className="interactive-field h-10 rounded-md border border-slate-300 px-3 text-sm" type="date" value={subscriptionForm.endDate} onChange={(event) => setSubscriptionForm({ ...subscriptionForm, endDate: event.target.value })} />
+            </div>
+            <Button type="submit">Save Subscription</Button>
+          </form>
+        </section>
+        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between"><h2 className="text-base font-semibold text-slate-950">Feature Overrides</h2><Button onClick={saveOverrides}>Save Overrides</Button></div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {features.map((feature) => (
+              <label key={feature.id} className="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={Boolean(overrideState[feature.id])} onChange={(event) => setOverrideState((current) => ({ ...current, [feature.id]: event.target.checked }))} />
+                {feature.name}
+              </label>
             ))}
           </div>
         </section>

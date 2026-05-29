@@ -36,24 +36,104 @@ model User {
 }
 
 model Organization {
-  id              Int              @id @default(autoincrement())
-  name            String
-  email           String?
-  phone           String?
-  address         String?
-  status          String           @default("ACTIVE")
-  plan            String           @default("FREE")
-  users           User[]
-  customers       Customer[]
-  customerSystems CustomerSystem[]
-  jobs            Job[]
-  payments        Payment[]
-  callLogs        CallLog[]
-  followUps       FollowUp[]
-  createdAt       DateTime         @default(now()) @map("created_at")
-  updatedAt       DateTime         @updatedAt @map("updated_at")
+  id               Int                        @id @default(autoincrement())
+  name             String
+  email            String?
+  phone            String?
+  address          String?
+  status           String                     @default("ACTIVE")
+  plan             String                     @default("FREE")
+  users            User[]
+  subscriptions    OrganizationSubscription[]
+  featureOverrides OrganizationFeature[]
+  customers        Customer[]
+  customerSystems  CustomerSystem[]
+  jobs             Job[]
+  payments         Payment[]
+  callLogs         CallLog[]
+  followUps        FollowUp[]
+  createdAt        DateTime                   @default(now()) @map("created_at")
+  updatedAt        DateTime                   @updatedAt @map("updated_at")
 
   @@map("organizations")
+}
+
+model Plan {
+  id            Int                        @id @default(autoincrement())
+  name          String
+  code          String                     @unique
+  description   String?                    @db.Text
+  monthlyPrice  Decimal                    @default(0) @map("monthly_price") @db.Decimal(12, 2)
+  yearlyPrice   Decimal                    @default(0) @map("yearly_price") @db.Decimal(12, 2)
+  status        String                     @default("ACTIVE")
+  features      PlanFeature[]
+  subscriptions OrganizationSubscription[]
+  createdAt     DateTime                   @default(now()) @map("created_at")
+  updatedAt     DateTime                   @updatedAt @map("updated_at")
+
+  @@map("plans")
+}
+
+model Feature {
+  id                    Int                   @id @default(autoincrement())
+  code                  String                @unique
+  name                  String
+  description           String?               @db.Text
+  moduleGroup           String                @map("module_group")
+  status                String                @default("ACTIVE")
+  plans                 PlanFeature[]
+  organizationOverrides OrganizationFeature[]
+  createdAt             DateTime              @default(now()) @map("created_at")
+  updatedAt             DateTime              @updatedAt @map("updated_at")
+
+  @@map("features")
+}
+
+model PlanFeature {
+  id        Int      @id @default(autoincrement())
+  planId    Int      @map("plan_id")
+  featureId Int      @map("feature_id")
+  plan      Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  feature   Feature  @relation(fields: [featureId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([planId, featureId])
+  @@index([featureId])
+  @@map("plan_features")
+}
+
+model OrganizationSubscription {
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @map("organization_id")
+  planId         Int          @map("plan_id")
+  status         String       @default("ACTIVE")
+  startDate      DateTime     @default(now()) @map("start_date")
+  endDate        DateTime?    @map("end_date")
+  billingCycle   String       @default("MONTHLY") @map("billing_cycle")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan           Plan         @relation(fields: [planId], references: [id], onDelete: Restrict)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@index([organizationId])
+  @@index([planId])
+  @@map("organization_subscriptions")
+}
+
+model OrganizationFeature {
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @map("organization_id")
+  featureId      Int          @map("feature_id")
+  enabled        Boolean      @default(true)
+  source         String       @default("MANUAL")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  feature        Feature      @relation(fields: [featureId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@unique([organizationId, featureId])
+  @@index([featureId])
+  @@map("organization_features")
 }
 
 model Customer {

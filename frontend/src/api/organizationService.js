@@ -19,3 +19,13 @@ export async function updateOrganization(id, payload) {
   const { data } = await api.put(`/organizations/${id}`, payload);
   return data.organization;
 }
+
+export async function updateOrganizationSubscription(id, payload) {
+  const { data } = await api.put(`/organizations/${id}/subscription`, payload);
+  return data.subscription;
+}
+
+export async function updateOrganizationFeatureOverrides(id, overrides) {
+  const { data } = await api.put(`/organizations/${id}/features`, { overrides });
+  return data.featureOverrides;
+}

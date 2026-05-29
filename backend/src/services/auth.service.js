@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import prisma from "../config/prisma.js";
 import ApiError from "../utils/ApiError.js";
+import { getFeatureCodesForUser } from "../utils/features.js";
 import { userSelectWithOrganization } from "../utils/tenant.js";
 import { validateEmail, validateEnum } from "../utils/validation.js";
 
@@ -111,6 +112,7 @@ export async function loginUser(data) {
     createdAt: user.createdAt,
     updatedAt: user.updatedAt
   };
+  publicUser.features = await getFeatureCodesForUser(publicUser);
 
   return { token: signToken(user), user: publicUser };
 }
