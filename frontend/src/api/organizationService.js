@@ -1,7 +1,7 @@
 import api from "./axios";
 
-export async function getOrganizations() {
-  const { data } = await api.get("/organizations");
+export async function getOrganizations(params = {}) {
+  const { data } = await api.get("/organizations", { params });
   return data.organizations;
 }
 

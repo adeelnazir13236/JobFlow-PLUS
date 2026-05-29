@@ -21,8 +21,10 @@ import OrganizationDetails from "./pages/OrganizationDetails";
 import Organizations from "./pages/Organizations";
 import PaymentDetails from "./pages/PaymentDetails";
 import Payments from "./pages/Payments";
+import PlansPlaceholder from "./pages/PlansPlaceholder";
 import ScheduleJob from "./pages/ScheduleJob";
 import Settings from "./pages/Settings";
+import SystemDashboard from "./pages/SystemDashboard";
 import Users from "./pages/Users";
 
 function SystemAdminRoute() {
@@ -58,10 +60,12 @@ export default function App() {
           <Route path="/call-logs" element={<CallLogs />} />
           <Route path="/followups" element={<FollowUps />} />
           <Route element={<SystemAdminRoute />}>
+            <Route path="/system" element={<SystemDashboard />} />
             <Route path="/organizations" element={<Organizations />} />
             <Route path="/organizations/add" element={<AddOrganization />} />
             <Route path="/organizations/:id" element={<OrganizationDetails />} />
             <Route path="/organizations/admins/add" element={<AddOrganizationAdmin />} />
+            <Route path="/plans" element={<PlansPlaceholder />} />
           </Route>
           <Route path="/users" element={<Users />} />
           <Route path="/settings" element={<Settings />} />

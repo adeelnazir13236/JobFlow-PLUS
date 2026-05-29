@@ -19,3 +19,9 @@ export function validateEnum(value, allowedValues, label) {
 export function validateEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
+
+export function validateOptionalEmail(value, label = "Email") {
+  if (value && !validateEmail(value)) {
+    throw new ApiError(400, `${label} must be a valid email address`);
+  }
+}

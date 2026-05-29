@@ -7,6 +7,6 @@ const router = Router();
 
 router.use(authenticate);
 
-router.get("/", authorize("ADMIN", "AGENT", "STAFF"), asyncHandler(showDashboard));
+router.get("/", authorize("SYSTEM_ADMIN", "ADMIN", "AGENT", "STAFF"), asyncHandler(showDashboard));
 
 export default router;

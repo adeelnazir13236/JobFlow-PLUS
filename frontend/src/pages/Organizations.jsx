@@ -25,6 +25,8 @@ function formatDate(value) {
 export default function Organizations() {
   const [organizations, setOrganizations] = useState([]);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [planFilter, setPlanFilter] = useState("");
   const [form, setForm] = useState(emptyForm);
   const [editingOrganization, setEditingOrganization] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -36,7 +38,11 @@ export default function Organizations() {
     try {
       setLoading(true);
       setError("");
-      setOrganizations(await getOrganizations());
+      setOrganizations(await getOrganizations({
+        search: search.trim() || undefined,
+        status: statusFilter || undefined,
+        plan: planFilter || undefined
+      }));
     } catch (err) {
       setError(err.response?.data?.message || "Unable to load organizations");
     } finally {
@@ -46,21 +52,9 @@ export default function Organizations() {
 
   useEffect(() => {
     loadOrganizations();
-  }, []);
+  }, [search, statusFilter, planFilter]);
 
-  const filteredOrganizations = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    if (!query) {
-      return organizations;
-    }
-
-    return organizations.filter((organization) =>
-      [organization.name, organization.email, organization.phone, organization.address, organization.plan, organization.status]
-        .filter(Boolean)
-        .some((value) => value.toLowerCase().includes(query))
-    );
-  }, [organizations, search]);
+  const filteredOrganizations = useMemo(() => organizations, [organizations]);
 
   function openCreateModal() {
     setEditingOrganization(null);
@@ -141,6 +135,35 @@ export default function Organizations() {
           onChange={(event) => setSearch(event.target.value)}
         />
       </div>
+      <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:max-w-2xl">
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-slate-700">Status</span>
+          <select
+            className="interactive-field h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-950 outline-none focus:border-slate-950 focus:ring-2 focus:ring-slate-200"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+          >
+            <option value="">All statuses</option>
+            <option value="ACTIVE">ACTIVE</option>
+            <option value="INACTIVE">INACTIVE</option>
+            <option value="SUSPENDED">SUSPENDED</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-slate-700">Plan</span>
+          <select
+            className="interactive-field h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-950 outline-none focus:border-slate-950 focus:ring-2 focus:ring-slate-200"
+            value={planFilter}
+            onChange={(event) => setPlanFilter(event.target.value)}
+          >
+            <option value="">All plans</option>
+            <option value="FREE">FREE</option>
+            <option value="PLUS">PLUS</option>
+            <option value="PRO">PRO</option>
+            <option value="ENTERPRISE">ENTERPRISE</option>
+          </select>
+        </label>
+      </div>
       {loading ? (
         <Alert type="info">Loading organizations...</Alert>
       ) : (
@@ -154,7 +177,26 @@ export default function Organizations() {
             { key: "customers", label: "Customers", render: (row) => row._count?.customers || 0 },
             { key: "jobs", label: "Jobs", render: (row) => row._count?.jobs || 0 },
             { key: "createdAt", label: "Created", render: (row) => formatDate(row.createdAt) },
-            { key: "actions", label: "Actions", render: (row) => <button className="font-medium text-slate-950" type="button" onClick={() => openEditModal(row)}>Edit</button> }
+            { key: "followUps", label: "Follow-ups", render: (row) => row._count?.followUps || 0 },
+            {
+              key: "actions",
+              label: "Actions",
+              render: (row) => (
+                <div className="flex gap-3">
+                  <button className="font-medium text-slate-950" type="button" onClick={() => openEditModal(row)}>Edit</button>
+                  <button
+                    className="font-medium text-slate-950"
+                    type="button"
+                    onClick={async () => {
+                      await updateOrganization(row.id, { ...row, status: row.status === "ACTIVE" ? "INACTIVE" : "ACTIVE" });
+                      await loadOrganizations();
+                    }}
+                  >
+                    {row.status === "ACTIVE" ? "Deactivate" : "Activate"}
+                  </button>
+                </div>
+              )
+            }
           ]}
           rows={filteredOrganizations}
           emptyMessage={search ? "No organizations match your search" : "No organizations found"}

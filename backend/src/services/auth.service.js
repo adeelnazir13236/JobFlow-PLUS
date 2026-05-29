@@ -87,8 +87,12 @@ export async function loginUser(data) {
       }
     }
   });
-  if (!user || user.status !== "ACTIVE" || (user.organization && user.organization.status !== "ACTIVE")) {
+  if (!user || user.status !== "ACTIVE") {
     throw new ApiError(401, "Invalid credentials");
+  }
+
+  if (user.organization && user.organization.status !== "ACTIVE") {
+    throw new ApiError(403, "Your organization is inactive. Please contact your system administrator.");
   }
 
   const passwordMatches = await bcrypt.compare(password, user.password);

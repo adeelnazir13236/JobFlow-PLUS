@@ -108,11 +108,7 @@ export async function getDashboardSummary(currentUser) {
   ]);
 
   const system = isSystemAdmin(currentUser)
-    ? {
-        organizations: await prisma.organization.count(),
-        activeOrganizations: await prisma.organization.count({ where: { status: "ACTIVE" } }),
-        users: await prisma.user.count()
-      }
+    ? await getSystemDashboardSummary()
     : undefined;
 
   return {
@@ -131,5 +127,82 @@ export async function getDashboardSummary(currentUser) {
     overdueFollowUps,
     recentCallLogs,
     system
+  };
+}
+
+async function getSystemDashboardSummary() {
+  const [
+    totalOrganizations,
+    activeOrganizations,
+    inactiveOrganizations,
+    totalUsers,
+    totalCustomers,
+    totalJobs,
+    totalFollowUps,
+    totalCallLogs,
+    recentOrganizations,
+    recentJobs,
+    recentCustomers
+  ] = await Promise.all([
+    prisma.organization.count(),
+    prisma.organization.count({ where: { status: "ACTIVE" } }),
+    prisma.organization.count({ where: { status: { not: "ACTIVE" } } }),
+    prisma.user.count(),
+    prisma.customer.count(),
+    prisma.job.count(),
+    prisma.followUp.count(),
+    prisma.callLog.count(),
+    prisma.organization.findMany({
+      take: 6,
+      include: {
+        _count: { select: { users: true, customers: true, jobs: true } }
+      },
+      orderBy: { createdAt: "desc" }
+    }),
+    prisma.job.findMany({
+      take: 6,
+      include: {
+        organization: { select: { id: true, name: true } },
+        customer: { select: { id: true, name: true, phone: true } }
+      },
+      orderBy: { createdAt: "desc" }
+    }),
+    prisma.customer.findMany({
+      take: 6,
+      include: {
+        organization: { select: { id: true, name: true } }
+      },
+      orderBy: { createdAt: "desc" }
+    })
+  ]);
+
+  return {
+    totalOrganizations,
+    activeOrganizations,
+    inactiveOrganizations,
+    totalUsers,
+    totalCustomers,
+    totalJobs,
+    totalFollowUps,
+    totalCallLogs,
+    recentOrganizations,
+    recentActivity: [
+      ...recentJobs.map((job) => ({
+        id: `job-${job.id}`,
+        type: "Job",
+        label: job.customer?.name || "Job",
+        detail: `${job.status} - ${job.organization?.name || "Unknown organization"}`,
+        createdAt: job.createdAt
+      })),
+      ...recentCustomers.map((customer) => ({
+        id: `customer-${customer.id}`,
+        type: "Customer",
+        label: customer.name,
+        detail: customer.organization?.name || "Unknown organization",
+        createdAt: customer.createdAt
+      }))
+    ]
+      .sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt))
+      .slice(0, 8)
   };
 }

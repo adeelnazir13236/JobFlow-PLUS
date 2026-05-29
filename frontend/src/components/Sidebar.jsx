@@ -45,13 +45,17 @@ const groups = [
     label: "Platform",
     systemOnly: true,
     links: [
+      { to: "/system", label: "System Dashboard", icon: DashboardIcon },
       { to: "/organizations", label: "Organizations", icon: UsersIcon },
       { to: "/organizations/add", label: "Add Organization", icon: AddIcon },
-      { to: "/organizations/admins/add", label: "Add Org Admin", icon: AddIcon }
+      { to: "/organizations/admins/add", label: "Add Org Admin", icon: AddIcon },
+      { to: "/users", label: "Users", icon: UsersIcon },
+      { to: "/plans", label: "Plans", icon: SettingsIcon }
     ]
   },
   {
     label: "Admin",
+    orgOnly: true,
     links: [
       { to: "/users", label: "Users", icon: UsersIcon },
       { to: "/settings", label: "Settings", icon: SettingsIcon }
@@ -112,7 +116,17 @@ export default function Sidebar({ open, onClose }) {
       isActive ? "bg-[var(--brand-blue)] text-white shadow-sm" : "text-slate-600 hover:bg-blue-50 hover:text-[var(--brand-blue)]"
     }`;
 
-  const visibleGroups = groups.filter((group) => !group.systemOnly || currentUser?.role === "SYSTEM_ADMIN");
+  const visibleGroups = groups.filter((group) => {
+    if (group.systemOnly) {
+      return currentUser?.role === "SYSTEM_ADMIN";
+    }
+
+    if (group.orgOnly) {
+      return currentUser?.role !== "SYSTEM_ADMIN";
+    }
+
+    return true;
+  });
 
   return (
     <>
