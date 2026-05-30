@@ -110,6 +110,14 @@ export default function CustomerDetails() {
         </DetailPanel>
         <div className="space-y-6">
           <section>
+            <h2 className="mb-3 text-base font-semibold text-slate-950">Financial Summary</h2>
+            <div className="grid gap-4 rounded-md border border-slate-200 bg-white p-4 md:grid-cols-3">
+              <div><div className="text-xs text-slate-500">Total Invoiced</div><div className="font-semibold">{formatAmount(customer.financialSummary?.totalInvoiced)}</div></div>
+              <div><div className="text-xs text-slate-500">Total Paid</div><div className="font-semibold">{formatAmount(customer.financialSummary?.totalPaid)}</div></div>
+              <div><div className="text-xs text-slate-500">Outstanding</div><div className="font-semibold">{formatAmount(customer.financialSummary?.outstanding)}</div></div>
+            </div>
+          </section>
+          <section>
             <h2 className="mb-3 text-base font-semibold text-slate-950">Solar/System Details</h2>
             <Table
               columns={[
@@ -172,6 +180,30 @@ export default function CustomerDetails() {
               ]}
               rows={customer.payments || []}
               emptyMessage="No payment records found"
+            />
+          </section>
+          <section>
+            <h2 className="mb-3 text-base font-semibold text-slate-950">Contract Invoices</h2>
+            <Table
+              columns={[
+                { key: "invoiceNumber", label: "Invoice" },
+                { key: "contract", label: "Contract", render: (row) => row.contract?.contractNumber || "N/A" },
+                { key: "amount", label: "Amount", render: (row) => formatAmount(row.amount) },
+                { key: "paidAmount", label: "Paid", render: (row) => formatAmount(row.paidAmount) },
+                { key: "balanceAmount", label: "Balance", render: (row) => formatAmount(row.balanceAmount || row.amount) },
+                { key: "paymentStatus", label: "Payment", render: (row) => <StatusBadge status={row.paymentStatus} /> },
+                {
+                  key: "actions",
+                  label: "Actions",
+                  render: (row) => (
+                    <Link className="interactive-link rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" to={`/invoices/${row.id}`}>
+                      View
+                    </Link>
+                  )
+                }
+              ]}
+              rows={customer.invoices || []}
+              emptyMessage="No contract invoices found"
             />
           </section>
           <section>

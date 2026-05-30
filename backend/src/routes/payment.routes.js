@@ -15,10 +15,10 @@ const router = Router();
 router.use(authenticate);
 router.use(requireFeature("PAYMENTS"));
 
-router.get("/", authorize("ADMIN", "AGENT", "STAFF"), asyncHandler(listPayments));
-router.get("/:id", authorize("ADMIN", "AGENT", "STAFF"), asyncHandler(getPayment));
-router.post("/", authorize("ADMIN", "AGENT"), asyncHandler(storePayment));
-router.put("/:id", authorize("ADMIN", "AGENT"), asyncHandler(editPayment));
-router.delete("/:id", authorize("ADMIN", "AGENT"), asyncHandler(removePayment));
+router.get("/", authorize("SYSTEM_ADMIN", "ADMIN", "AGENT", "STAFF"), asyncHandler(listPayments));
+router.get("/:id", authorize("SYSTEM_ADMIN", "ADMIN", "AGENT", "STAFF"), asyncHandler(getPayment));
+router.post("/", authorize("SYSTEM_ADMIN", "ADMIN", "AGENT"), asyncHandler(storePayment));
+router.put("/:id", authorize("SYSTEM_ADMIN", "ADMIN", "AGENT"), asyncHandler(editPayment));
+router.delete("/:id", authorize("SYSTEM_ADMIN", "ADMIN", "AGENT"), asyncHandler(removePayment));
 
 export default router;

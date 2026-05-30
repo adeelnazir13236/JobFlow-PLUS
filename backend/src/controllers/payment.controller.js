@@ -8,7 +8,7 @@ import {
 import { parseId } from "../utils/validation.js";
 
 export async function listPayments(req, res) {
-  const payments = await getPayments(req.user);
+  const payments = await getPayments(req.user, req.query);
   res.json({ payments });
 }
 

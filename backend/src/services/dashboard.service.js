@@ -21,6 +21,12 @@ function endOfMonth(date = new Date()) {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
 }
 
+function addDays(date, days) {
+  const value = new Date(date);
+  value.setDate(value.getDate() + days);
+  return value;
+}
+
 export async function getDashboardSummary(currentUser) {
   const todayStart = startOfDay();
   const todayEnd = endOfDay();
@@ -38,6 +44,12 @@ export async function getDashboardSummary(currentUser) {
     pendingPayments,
     paidPayments,
     partialPayments,
+    activeContracts,
+    expiringContracts,
+    completedContracts,
+    pausedContracts,
+    contractJobsDue,
+    pendingContractInvoices,
     todaysJobs,
     overdueFollowUps,
     recentCallLogs
@@ -66,12 +78,25 @@ export async function getDashboardSummary(currentUser) {
     }),
     prisma.job.count({ where: { ...tenant, status: "CANCELLED" } }),
     prisma.payment.aggregate({
-      where: { ...tenant, paymentStatus: { in: ["PAID", "PARTIAL_PAID"] } },
+      where: { ...tenant, paymentStatus: { in: ["PAID", "PARTIAL_PAID", "PARTIALLY_PAID"] } },
       _sum: { paidAmount: true }
     }),
     prisma.payment.count({ where: { ...tenant, paymentStatus: "PENDING" } }),
     prisma.payment.count({ where: { ...tenant, paymentStatus: "PAID" } }),
-    prisma.payment.count({ where: { ...tenant, paymentStatus: "PARTIAL_PAID" } }),
+    prisma.payment.count({ where: { ...tenant, paymentStatus: { in: ["PARTIAL_PAID", "PARTIALLY_PAID"] } } }),
+    prisma.contract.count({ where: { ...tenant, status: "ACTIVE" } }),
+    prisma.contract.count({ where: { ...tenant, status: "ACTIVE", endDate: { gte: todayStart, lte: addDays(todayStart, 30) } } }),
+    prisma.contract.count({ where: { ...tenant, status: "COMPLETED" } }),
+    prisma.contract.count({ where: { ...tenant, status: "PAUSED" } }),
+    prisma.job.count({
+      where: {
+        ...tenant,
+        status: "SCHEDULED",
+        scheduledDate: { lte: todayEnd },
+        contractLinks: { some: {} }
+      }
+    }),
+    prisma.invoice.count({ where: { ...tenant, status: { in: ["DRAFT", "GENERATED", "SENT", "OVERDUE"] } } }),
     prisma.job.findMany({
       where: {
         ...tenant,
@@ -121,7 +146,13 @@ export async function getDashboardSummary(currentUser) {
       totalRevenue: Number(totalRevenue._sum.paidAmount || 0),
       pendingPayments,
       paidPayments,
-      partialPayments
+      partialPayments,
+      activeContracts,
+      expiringContracts,
+      completedContracts,
+      pausedContracts,
+      contractJobsDue,
+      pendingContractInvoices
     },
     todaysJobs,
     overdueFollowUps,

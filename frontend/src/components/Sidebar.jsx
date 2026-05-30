@@ -30,6 +30,8 @@ const groups = [
       { to: "/customers/add", label: "Add Customer", icon: AddIcon, feature: "CUSTOMERS" },
       { to: "/jobs", label: "Jobs", icon: JobsIcon, feature: "JOBS" },
       { to: "/jobs/schedule", label: "Schedule Job", icon: AddIcon, feature: "JOBS" },
+      { to: "/contracts", label: "Contracts", icon: JobsIcon, feature: "CONTRACTS" },
+      { to: "/contracts/add", label: "Add Contract", icon: AddIcon, feature: "CONTRACTS" },
       { to: "/call-logs", label: "Call Logs", icon: PhoneIcon, feature: "CALL_LOGS" },
       { to: "/followups", label: "Follow-ups", icon: FollowUpIcon, feature: "FOLLOW_UPS" }
     ]
@@ -38,7 +40,8 @@ const groups = [
     label: "Finance",
     links: [
       { to: "/payments", label: "Payments", icon: PaymentIcon, feature: "PAYMENTS" },
-      { to: "/payments/add", label: "Add Payment", icon: AddIcon, feature: "PAYMENTS" }
+      { to: "/payments/add", label: "Add Payment", icon: AddIcon, feature: "PAYMENTS" },
+      { to: "/invoices", label: "Invoices", icon: PaymentIcon, feature: "INVOICES" }
     ]
   },
   {

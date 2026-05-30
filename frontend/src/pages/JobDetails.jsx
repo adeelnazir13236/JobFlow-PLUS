@@ -80,6 +80,13 @@ export default function JobDetails() {
             <DetailItem label="Created By">{job.createdBy?.name}</DetailItem>
             <DetailItem label="Updated By">{job.updatedBy?.name}</DetailItem>
             <DetailItem label="Completed By">{job.completedBy?.name}</DetailItem>
+            {job.contractLinks?.[0] && (
+              <DetailItem label="Contract">
+                <Link className="interactive-link text-[var(--brand-blue)]" to={`/contracts/${job.contractLinks[0].contract?.id}`}>
+                  {job.contractLinks[0].contract?.contractNumber} #{job.contractLinks[0].jobSequenceNumber}
+                </Link>
+              </DetailItem>
+            )}
             <DetailItem label="Status"><StatusBadge status={job.status} /></DetailItem>
             <DetailItem label="Remarks">{job.remarks}</DetailItem>
           </DetailGrid>

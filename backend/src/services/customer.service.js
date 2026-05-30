@@ -15,10 +15,34 @@ const customerInclude = {
     orderBy: { scheduledDate: "desc" }
   },
   payments: {
-    include: { job: true },
+    include: { job: true, invoice: true, contract: true },
     orderBy: { createdAt: "desc" }
+  },
+  invoices: {
+    include: {
+      contract: { select: { id: true, contractNumber: true, title: true } },
+      payments: { orderBy: { paymentDate: "desc" } }
+    },
+    orderBy: { invoiceDate: "desc" }
   }
 };
+
+function withFinancialSummary(customer) {
+  const invoices = customer.invoices || [];
+  const totalInvoiced = invoices.reduce((sum, invoice) => sum + Number(invoice.amount || 0), 0);
+  const totalPaid = invoices.reduce((sum, invoice) => sum + Number(invoice.paidAmount || 0), 0);
+  const outstanding = invoices.reduce((sum, invoice) => sum + Number(invoice.balanceAmount || invoice.amount || 0), 0);
+
+  return {
+    ...customer,
+    financialSummary: {
+      totalInvoiced,
+      totalPaid,
+      outstanding,
+      recentPayments: (customer.payments || []).filter((payment) => payment.invoiceId).slice(0, 5)
+    }
+  };
+}
 
 function normalizeCustomerData(customerData) {
   return {
@@ -61,7 +85,7 @@ export async function getCustomerById(id, currentUser) {
     throw new ApiError(404, "Customer not found");
   }
 
-  return customer;
+  return withFinancialSummary(customer);
 }
 
 export async function createCustomer(data, currentUser) {

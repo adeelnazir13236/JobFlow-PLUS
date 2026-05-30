@@ -1,6 +1,7 @@
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AddContract from "./pages/AddContract";
 import AddCustomer from "./pages/AddCustomer";
 import AddOrganization from "./pages/AddOrganization";
 import AddOrganizationAdmin from "./pages/AddOrganizationAdmin";
@@ -15,6 +16,10 @@ import EditCustomer from "./pages/EditCustomer";
 import EditJob from "./pages/EditJob";
 import EditPayment from "./pages/EditPayment";
 import FollowUps from "./pages/FollowUps";
+import ContractDetails from "./pages/ContractDetails";
+import Contracts from "./pages/Contracts";
+import InvoiceDetails from "./pages/InvoiceDetails";
+import Invoices from "./pages/Invoices";
 import JobDetails from "./pages/JobDetails";
 import Jobs from "./pages/Jobs";
 import Login from "./pages/Login";
@@ -80,6 +85,15 @@ export default function App() {
           </Route>
           <Route element={<FeatureRoute feature="FOLLOW_UPS" />}>
             <Route path="/followups" element={<FollowUps />} />
+          </Route>
+          <Route element={<FeatureRoute feature="CONTRACTS" />}>
+            <Route path="/contracts" element={<Contracts />} />
+            <Route path="/contracts/add" element={<AddContract />} />
+            <Route path="/contracts/:id" element={<ContractDetails />} />
+          </Route>
+          <Route element={<FeatureRoute feature="INVOICES" />}>
+            <Route path="/invoices" element={<Invoices />} />
+            <Route path="/invoices/:id" element={<InvoiceDetails />} />
           </Route>
           <Route element={<SystemAdminRoute />}>
             <Route path="/system" element={<SystemDashboard />} />

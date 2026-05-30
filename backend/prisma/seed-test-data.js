@@ -69,6 +69,10 @@ function invoiceNumberForJob(jobId) {
   return `SEED-INV-${String(jobId).padStart(6, "0")}`;
 }
 
+function contractInvoiceNumber(contractId, completedJobs) {
+  return `SEED-CINV-${String(contractId).padStart(4, "0")}-${completedJobs}`;
+}
+
 async function upsertOrganization(data) {
   const existing = await prisma.organization.findFirst({ where: { name: data.name } });
 
@@ -303,6 +307,147 @@ async function upsertPayment(organization, customer, job, admin, paymentSeed) {
   });
 }
 
+async function seedContractExample(organization, customer, admin, staff, contractSeed) {
+  const contract = await prisma.contract.create({
+    data: {
+      organizationId: organization.id,
+      customerId: customer.id,
+      contractNumber: contractSeed.contractNumber,
+      title: contractSeed.title,
+      description: contractSeed.description,
+      startDate: contractSeed.startDate,
+      endDate: contractSeed.endDate,
+      contractValue: contractSeed.contractValue,
+      status: "ACTIVE",
+      createdByUserId: admin.id
+    }
+  });
+
+  const service = await prisma.contractService.create({
+    data: {
+      organizationId: organization.id,
+      contractId: contract.id,
+      serviceName: contractSeed.serviceName,
+      description: contractSeed.serviceDescription,
+      frequencyType: contractSeed.frequencyType || "MONTHLY",
+      frequencyInterval: contractSeed.frequencyInterval || 1,
+      totalJobs: contractSeed.totalJobs,
+      completedJobs: contractSeed.completedJobs,
+      nextJobDate: contractSeed.nextJobDate,
+      preferredTime: "09:00",
+      assignedUserId: staff.id,
+      generateNextOnCompletion: true,
+      status: "ACTIVE"
+    }
+  });
+
+  const job = await prisma.job.create({
+    data: {
+      organizationId: organization.id,
+      customerId: customer.id,
+      assignedStaffId: staff.id,
+      scheduledDate: contractSeed.nextJobDate,
+      scheduledTime: "09:00",
+      status: "SCHEDULED",
+      remarks: `Contract ${contract.contractNumber} - ${service.serviceName} #${contractSeed.nextSequence}`,
+      createdById: admin.id,
+      updatedById: admin.id
+    }
+  });
+
+  await prisma.contractJobLink.create({
+    data: {
+      organizationId: organization.id,
+      contractId: contract.id,
+      contractServiceId: service.id,
+      jobId: job.id,
+      jobSequenceNumber: contractSeed.nextSequence
+    }
+  });
+
+  const billingRule = await prisma.contractBillingRule.create({
+    data: {
+      organizationId: organization.id,
+      contractId: contract.id,
+      billingType: "MONTHLY",
+      billingCycle: "MONTHLY",
+      invoiceAfterCompletedJobs: contractSeed.invoiceAfterCompletedJobs,
+      invoiceAmount: contractSeed.invoiceAmount,
+      lastInvoicedCompletedJobCount: contractSeed.completedJobs,
+      nextInvoiceDueAfterJobs: contractSeed.completedJobs + contractSeed.invoiceAfterCompletedJobs,
+      status: "ACTIVE"
+    }
+  });
+
+  if (contractSeed.completedJobs > 0) {
+    const invoice = await prisma.invoice.create({
+      data: {
+        organizationId: organization.id,
+        customerId: customer.id,
+        contractId: contract.id,
+        billingRuleId: billingRule.id,
+        invoiceNumber: contractInvoiceNumber(contract.id, contractSeed.completedJobs),
+        invoiceDate: addDays(new Date(), -1, 10),
+        dueDate: addDays(new Date(), 14, 10),
+        amount: contractSeed.invoiceAmount,
+        paidAmount: contractSeed.seedPaymentAmount || 0,
+        balanceAmount: Math.max(Number(contractSeed.invoiceAmount) - Number(contractSeed.seedPaymentAmount || 0), 0),
+        status: contractSeed.seedPaymentAmount >= contractSeed.invoiceAmount ? "PAID" : contractSeed.seedPaymentAmount > 0 ? "PARTIALLY_PAID" : "GENERATED",
+        paymentStatus: contractSeed.seedPaymentAmount >= contractSeed.invoiceAmount ? "PAID" : contractSeed.seedPaymentAmount > 0 ? "PARTIALLY_PAID" : "GENERATED",
+        notes: `Seed invoice after ${contractSeed.completedJobs} completed contract jobs`
+      }
+    });
+
+    if (contractSeed.seedPaymentAmount > 0) {
+      await prisma.payment.create({
+        data: {
+          organizationId: organization.id,
+          customerId: customer.id,
+          invoiceId: invoice.id,
+          contractId: contract.id,
+          invoiceNumber: `SEED-PAY-${invoice.id}`,
+          paymentNumber: `SEED-PAY-${invoice.id}`,
+          totalAmount: invoice.amount,
+          amount: contractSeed.seedPaymentAmount,
+          paidAmount: contractSeed.seedPaymentAmount,
+          balanceAmount: Math.max(Number(invoice.amount) - Number(contractSeed.seedPaymentAmount), 0),
+          paymentMethod: contractSeed.seedPaymentMethod || "BANK_TRANSFER",
+          paymentStatus: contractSeed.seedPaymentAmount >= contractSeed.invoiceAmount ? "PAID" : "PARTIALLY_PAID",
+          paymentDate: new Date(),
+          referenceNumber: contractSeed.seedPaymentReference || null,
+          notes: contractSeed.seedPaymentNotes || "Seed invoice payment",
+          remarks: contractSeed.seedPaymentNotes || "Seed invoice payment",
+          receivedById: admin.id,
+          createdById: admin.id,
+          updatedById: admin.id
+        }
+      });
+    }
+  }
+
+  if (contractSeed.extraUnpaidInvoice) {
+    await prisma.invoice.create({
+      data: {
+        organizationId: organization.id,
+        customerId: customer.id,
+        contractId: contract.id,
+        billingRuleId: billingRule.id,
+        invoiceNumber: `SEED-CINV-${String(contract.id).padStart(4, "0")}-UNPAID`,
+        invoiceDate: new Date(),
+        dueDate: addDays(new Date(), 15, 10),
+        amount: contractSeed.invoiceAmount,
+        paidAmount: 0,
+        balanceAmount: contractSeed.invoiceAmount,
+        status: "GENERATED",
+        paymentStatus: "GENERATED",
+        notes: "Seed unpaid invoice for payment testing"
+      }
+    });
+  }
+
+  return { contract, job };
+}
+
 const systemAdmin = await prisma.user.upsert({
   where: { email: "system.admin@jobflowplus.com" },
   update: { name: "System Admin", password, role: "SYSTEM_ADMIN", status: "ACTIVE", organizationId: null },
@@ -386,7 +531,9 @@ const summary = {
   jobs: 0,
   followUps: 0,
   callLogs: 0,
-  payments: 0
+  payments: 0,
+  contracts: 0,
+  invoices: 0
 };
 
 for (const seed of organizationSeeds) {
@@ -412,6 +559,8 @@ for (const seed of organizationSeeds) {
   const agent = users.find((user) => user.role === "AGENT");
   const staff = users.find((user) => user.role === "STAFF");
 
+  await prisma.invoice.deleteMany({ where: { organizationId: organization.id } });
+  await prisma.contract.deleteMany({ where: { organizationId: organization.id } });
   await prisma.payment.deleteMany({ where: { organizationId: organization.id } });
   await prisma.followUp.deleteMany({ where: { organizationId: organization.id } });
   await prisma.callLog.deleteMany({ where: { organizationId: organization.id } });
@@ -419,9 +568,11 @@ for (const seed of organizationSeeds) {
   await prisma.customerSystem.deleteMany({ where: { organizationId: organization.id } });
   await prisma.customer.deleteMany({ where: { organizationId: organization.id } });
 
+  const createdCustomers = [];
   for (let index = 0; index < seed.customers.length; index += 1) {
     const customerSeed = seed.customers[index];
     const customer = await upsertCustomer(organization, admin, customerSeed, index);
+    createdCustomers.push(customer);
     summary.customers += 1;
 
     const jobs = [
@@ -474,6 +625,65 @@ for (const seed of organizationSeeds) {
       if (payment) {
         summary.payments += 1;
       }
+    }
+  }
+
+  if (seed.subscriptionPlan === "PROFESSIONAL") {
+    const { contract } = await seedContractExample(organization, createdCustomers[0], admin, staff, {
+      contractNumber: "AMC-MAINT-36",
+      title: "Annual Maintenance",
+      description: "Monthly maintenance contract with billing after every three completed jobs.",
+      serviceName: "Facility Maintenance Visit",
+      serviceDescription: "Recurring preventive maintenance visit.",
+      startDate: startOfDay(0, 9),
+      endDate: addDays(startOfDay(0, 9), 365, 9),
+      nextJobDate: addDays(startOfDay(0, 9), 30, 9),
+      contractValue: 432000,
+      totalJobs: 36,
+      completedJobs: 3,
+      nextSequence: 4,
+      invoiceAfterCompletedJobs: 3,
+      invoiceAmount: 36000,
+      seedPaymentAmount: 12000,
+      seedPaymentReference: "PARTIAL-TEST-001",
+      seedPaymentNotes: "Seed partial payment against maintenance invoice",
+      extraUnpaidInvoice: true
+    });
+    if (contract) {
+      summary.contracts += 1;
+      summary.jobs += 1;
+      summary.invoices += 1 + 1;
+      summary.payments += 1;
+    }
+  }
+
+  if (seed.subscriptionPlan === "ENTERPRISE") {
+    const { contract } = await seedContractExample(organization, createdCustomers[0], admin, staff, {
+      contractNumber: "AMC-OFFICE-24",
+      title: "Annual Office Cleaning",
+      description: "Recurring office service contract with billing after every two completed jobs.",
+      serviceName: "Office Service Visit",
+      serviceDescription: "Recurring scheduled service visit.",
+      startDate: startOfDay(0, 9),
+      endDate: addDays(startOfDay(0, 9), 365, 9),
+      nextJobDate: addDays(startOfDay(0, 9), 30, 9),
+      contractValue: 288000,
+      frequencyType: "CUSTOM",
+      frequencyInterval: 15,
+      totalJobs: 24,
+      completedJobs: 2,
+      nextSequence: 3,
+      invoiceAfterCompletedJobs: 2,
+      invoiceAmount: 24000,
+      seedPaymentAmount: 24000,
+      seedPaymentReference: "PAID-TEST-001",
+      seedPaymentNotes: "Seed full payment against office invoice"
+    });
+    if (contract) {
+      summary.contracts += 1;
+      summary.jobs += 1;
+      summary.invoices += 1;
+      summary.payments += 1;
     }
   }
 }

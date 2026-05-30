@@ -8,7 +8,7 @@ import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
 import Table from "../components/Table";
 
-const statuses = ["ALL", "PENDING", "PARTIAL_PAID", "PAID", "CANCELLED", "REFUNDED"];
+const statuses = ["ALL", "PENDING", "PARTIAL_PAID", "PARTIALLY_PAID", "PAID", "CANCELLED", "REFUNDED"];
 
 function formatAmount(value) {
   return Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -61,9 +61,13 @@ export default function Payments() {
         payment.customer?.phone,
         payment.customer?.area,
         payment.customer?.city,
+        payment.paymentNumber,
         payment.invoiceNumber,
+        payment.invoice?.invoiceNumber,
+        payment.contract?.contractNumber,
         `#${payment.jobId}`,
         payment.totalAmount,
+        payment.amount,
         payment.paidAmount,
         payment.balanceAmount,
         payment.paymentMethod,
@@ -97,7 +101,7 @@ export default function Payments() {
     <>
       <PageHeader
         title="Payments"
-        description="Track invoices, received amounts, and balances for completed jobs."
+        description="Track job payments and manual payments received against contract invoices."
         action={
           <Link to="/payments/add">
             <Button>Add Payment</Button>
@@ -129,11 +133,13 @@ export default function Payments() {
       ) : (
         <Table
           columns={[
-            { key: "invoiceNumber", label: "Invoice", render: (row) => row.invoiceNumber || `INV-${String(row.id).padStart(6, "0")}` },
+            { key: "paymentNumber", label: "Payment", render: (row) => row.paymentNumber || row.invoiceNumber || `PAY-${String(row.id).padStart(6, "0")}` },
+            { key: "invoice", label: "Invoice", render: (row) => row.invoice?.invoiceNumber || (row.jobId ? row.invoiceNumber : "N/A") },
             { key: "customer", label: "Customer", render: (row) => row.customer?.name || "N/A" },
-            { key: "job", label: "Job", render: (row) => `#${row.jobId}` },
+            { key: "contract", label: "Contract", render: (row) => row.contract?.contractNumber || "N/A" },
+            { key: "job", label: "Job", render: (row) => row.jobId ? `#${row.jobId}` : "N/A" },
             { key: "totalAmount", label: "Total", render: (row) => formatAmount(row.totalAmount) },
-            { key: "paidAmount", label: "Paid", render: (row) => formatAmount(row.paidAmount) },
+            { key: "paidAmount", label: "Paid", render: (row) => formatAmount(row.amount || row.paidAmount) },
             { key: "balanceAmount", label: "Balance", render: (row) => formatAmount(row.balanceAmount) },
             { key: "paymentMethod", label: "Method" },
             { key: "paymentDate", label: "Date", render: (row) => formatDate(row.paymentDate) },
@@ -147,9 +153,11 @@ export default function Payments() {
                   <Link className="interactive-link rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" to={`/payments/${row.id}`}>
                     View
                   </Link>
-                  <Link className="interactive-link rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" to={`/payments/${row.id}/edit`}>
-                    Edit
-                  </Link>
+                  {!row.invoiceId && (
+                    <Link className="interactive-link rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50" to={`/payments/${row.id}/edit`}>
+                      Edit
+                    </Link>
+                  )}
                   <Button className="min-h-9 px-3" variant="danger" onClick={() => handleDelete(row)} disabled={actionLoadingId === row.id}>
                     {actionLoadingId === row.id ? "Deleting..." : "Delete"}
                   </Button>

@@ -129,6 +129,14 @@ export default function Jobs() {
             { key: "assignedStaff", label: "Staff", render: (row) => row.assignedStaff?.name || "Unassigned" },
             { key: "scheduledDate", label: "Date", render: (row) => formatDate(row.scheduledDate) },
             { key: "scheduledTime", label: "Time" },
+            {
+              key: "contract",
+              label: "Contract",
+              render: (row) => {
+                const link = row.contractLinks?.[0];
+                return link ? `${link.contract?.contractNumber || "Contract"} #${link.jobSequenceNumber}` : "N/A";
+              }
+            },
             { key: "completionDate", label: "Completed", render: (row) => formatDate(row.completionDate) },
             { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
             {

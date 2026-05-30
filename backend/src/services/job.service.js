@@ -1,4 +1,5 @@
 import prisma from "../config/prisma.js";
+import { handleContractJobCompletion } from "./contract.service.js";
 import ApiError from "../utils/ApiError.js";
 import { tenantData, tenantWhere } from "../utils/tenant.js";
 import { validateEnum } from "../utils/validation.js";
@@ -12,6 +13,12 @@ const jobInclude = {
   createdBy: { select: { id: true, name: true, email: true, role: true } },
   updatedBy: { select: { id: true, name: true, email: true, role: true } },
   completedBy: { select: { id: true, name: true, email: true, role: true } },
+  contractLinks: {
+    include: {
+      contract: { select: { id: true, contractNumber: true, title: true, status: true } },
+      contractService: { select: { id: true, serviceName: true, totalJobs: true, completedJobs: true } }
+    }
+  },
   followUps: true,
   payments: {
     include: {
@@ -73,10 +80,12 @@ async function createPaymentIfMissing(tx, job, currentUser) {
   const payment = await tx.payment.create({
     data: {
       invoiceNumber: `TMP-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+      paymentNumber: `TMP-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
       organizationId: job.organizationId,
       customerId: job.customerId,
       jobId: job.id,
       totalAmount,
+      amount: 0,
       paidAmount: 0,
       balanceAmount: totalAmount,
       paymentMethod: "CASH",
@@ -90,7 +99,10 @@ async function createPaymentIfMissing(tx, job, currentUser) {
 
   await tx.payment.update({
     where: { id: payment.id },
-    data: { invoiceNumber: `INV-${String(payment.id).padStart(6, "0")}` }
+    data: {
+      invoiceNumber: `INV-${String(payment.id).padStart(6, "0")}`,
+      paymentNumber: `INV-${String(payment.id).padStart(6, "0")}`
+    }
   });
 }
 
@@ -229,6 +241,10 @@ export async function updateJob(id, data, currentUser) {
     if (job.status === "COMPLETED") {
       await createFollowUpIfMissing(tx, job, currentUser);
       await createPaymentIfMissing(tx, job, currentUser);
+
+      if (isCompleting) {
+        await handleContractJobCompletion(tx, job, currentUser);
+      }
     }
 
     return tx.job.findUnique({
@@ -246,6 +262,7 @@ export async function completeJob(id, remarks, currentUser) {
       throw new ApiError(404, "Job not found");
     }
 
+    const isCompleting = existingJob.status !== "COMPLETED";
     const job = await tx.job.update({
       where: { id },
       data: {
@@ -259,6 +276,10 @@ export async function completeJob(id, remarks, currentUser) {
 
     await createFollowUpIfMissing(tx, job, currentUser);
     await createPaymentIfMissing(tx, job, currentUser);
+
+    if (isCompleting) {
+      await handleContractJobCompletion(tx, job, currentUser);
+    }
 
     return tx.job.findUnique({
       where: { id },

@@ -55,14 +55,16 @@ export default function PaymentDetails() {
   return (
     <>
       <PageHeader
-        title={payment.invoiceNumber || `Payment #${payment.id}`}
-        description={`${payment.customer?.name || "Customer"} - Job #${payment.jobId}`}
+        title={payment.paymentNumber || payment.invoiceNumber || `Payment #${payment.id}`}
+        description={payment.invoiceId ? `${payment.customer?.name || "Customer"} - ${payment.invoice?.invoiceNumber}` : `${payment.customer?.name || "Customer"} - Job #${payment.jobId}`}
         action={
           <div className="no-print flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => window.print()}>Print Invoice</Button>
-            <Link to={`/payments/${payment.id}/edit`}>
-              <Button>Edit Payment</Button>
-            </Link>
+            {!payment.invoiceId && (
+              <Link to={`/payments/${payment.id}/edit`}>
+                <Button>Edit Payment</Button>
+              </Link>
+            )}
           </div>
         }
       />
@@ -78,8 +80,8 @@ export default function PaymentDetails() {
             </div>
           </div>
           <div className="text-left sm:text-right">
-            <div className="text-sm font-medium text-slate-500">Invoice Number</div>
-            <div className="text-2xl font-semibold text-slate-950">{payment.invoiceNumber || `INV-${String(payment.id).padStart(6, "0")}`}</div>
+            <div className="text-sm font-medium text-slate-500">Payment Number</div>
+            <div className="text-2xl font-semibold text-slate-950">{payment.paymentNumber || payment.invoiceNumber || `PAY-${String(payment.id).padStart(6, "0")}`}</div>
             <div className="mt-2"><StatusBadge status={payment.paymentStatus} /></div>
           </div>
         </div>
@@ -95,12 +97,16 @@ export default function PaymentDetails() {
             </dl>
           </section>
           <section>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Job & Payment</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{payment.invoiceId ? "Invoice & Payment" : "Job & Payment"}</h2>
             <dl className="mt-3 space-y-2 text-sm">
-              <div><dt className="text-slate-500">Job</dt><dd className="font-medium text-slate-950">#{payment.jobId}</dd></div>
+              <div><dt className="text-slate-500">Invoice</dt><dd className="font-medium text-slate-950">{payment.invoice?.invoiceNumber || "N/A"}</dd></div>
+              <div><dt className="text-slate-500">Contract</dt><dd className="font-medium text-slate-950">{payment.contract?.contractNumber || "N/A"}</dd></div>
+              <div><dt className="text-slate-500">Job</dt><dd className="font-medium text-slate-950">{payment.jobId ? `#${payment.jobId}` : "N/A"}</dd></div>
               <div><dt className="text-slate-500">Job Date</dt><dd className="font-medium text-slate-950">{formatDate(payment.job?.scheduledDate)}</dd></div>
               <div><dt className="text-slate-500">Payment Date</dt><dd className="font-medium text-slate-950">{formatDate(payment.paymentDate)}</dd></div>
               <div><dt className="text-slate-500">Method</dt><dd className="font-medium text-slate-950">{payment.paymentMethod}</dd></div>
+              <div><dt className="text-slate-500">Reference</dt><dd className="font-medium text-slate-950">{payment.referenceNumber || "N/A"}</dd></div>
+              <div><dt className="text-slate-500">Received By</dt><dd className="font-medium text-slate-950">{formatUser(payment.receivedBy)}</dd></div>
               <div><dt className="text-slate-500">Created By</dt><dd className="font-medium text-slate-950">{formatUser(payment.createdBy)}</dd></div>
               <div><dt className="text-slate-500">Updated By</dt><dd className="font-medium text-slate-950">{formatUser(payment.updatedBy)}</dd></div>
             </dl>
@@ -118,15 +124,15 @@ export default function PaymentDetails() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 <tr>
-                  <td className="px-4 py-4 text-sm text-slate-700">Job service charges for Job #{payment.jobId}</td>
-                  <td className="px-4 py-4 text-right text-sm font-semibold text-slate-950">{formatAmount(payment.totalAmount)}</td>
+                  <td className="px-4 py-4 text-sm text-slate-700">{payment.invoiceId ? `Payment against invoice ${payment.invoice?.invoiceNumber}` : `Job service charges for Job #${payment.jobId}`}</td>
+                  <td className="px-4 py-4 text-right text-sm font-semibold text-slate-950">{formatAmount(payment.amount || payment.paidAmount)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
           <dl className="ml-auto mt-5 max-w-sm space-y-3 text-sm">
             <div className="flex justify-between gap-4"><dt className="text-slate-500">Total Amount</dt><dd className="font-semibold text-slate-950">{formatAmount(payment.totalAmount)}</dd></div>
-            <div className="flex justify-between gap-4"><dt className="text-slate-500">Paid Amount</dt><dd className="font-semibold text-slate-950">{formatAmount(payment.paidAmount)}</dd></div>
+            <div className="flex justify-between gap-4"><dt className="text-slate-500">Paid Amount</dt><dd className="font-semibold text-slate-950">{formatAmount(payment.amount || payment.paidAmount)}</dd></div>
             <div className="flex justify-between gap-4 border-t border-slate-200 pt-3"><dt className="font-semibold text-slate-950">Balance Amount</dt><dd className="text-xl font-bold text-slate-950">{formatAmount(payment.balanceAmount)}</dd></div>
           </dl>
         </div>
