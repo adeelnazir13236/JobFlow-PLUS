@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   editPayment,
+  downloadPaymentReceipt,
   getPayment,
   listPayments,
   removePayment,
@@ -16,6 +17,7 @@ router.use(authenticate);
 router.use(requireFeature("PAYMENTS"));
 
 router.get("/", authorize("SYSTEM_ADMIN", "ADMIN", "AGENT", "STAFF"), asyncHandler(listPayments));
+router.get("/:id/receipt", authorize("SYSTEM_ADMIN", "ADMIN", "AGENT", "STAFF"), asyncHandler(downloadPaymentReceipt));
 router.get("/:id", authorize("SYSTEM_ADMIN", "ADMIN", "AGENT", "STAFF"), asyncHandler(getPayment));
 router.post("/", authorize("SYSTEM_ADMIN", "ADMIN", "AGENT"), asyncHandler(storePayment));
 router.put("/:id", authorize("SYSTEM_ADMIN", "ADMIN", "AGENT"), asyncHandler(editPayment));

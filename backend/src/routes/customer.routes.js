@@ -16,9 +16,9 @@ const router = Router();
 router.use(authenticate);
 router.use(requireFeature("CUSTOMERS"));
 
-router.get("/", authorize("ADMIN", "AGENT", "STAFF"), asyncHandler(listCustomers));
-router.get("/:id", authorize("ADMIN", "AGENT", "STAFF"), asyncHandler(getCustomer));
-router.post("/", authorize("ADMIN", "AGENT"), asyncHandler(storeCustomer));
+router.get("/", authorize("SYSTEM_ADMIN", "ADMIN", "AGENT", "STAFF"), asyncHandler(listCustomers));
+router.get("/:id", authorize("SYSTEM_ADMIN", "ADMIN", "AGENT", "STAFF"), asyncHandler(getCustomer));
+router.post("/", authorize("SYSTEM_ADMIN", "ADMIN", "AGENT"), asyncHandler(storeCustomer));
 router.put("/:id", authorize("ADMIN", "AGENT"), asyncHandler(editCustomer));
 router.delete("/:id", authorize("ADMIN"), asyncHandler(removeCustomer));
 router.get("/:id/call-logs", authorize("ADMIN", "AGENT", "STAFF"), asyncHandler(listCustomerCallLogs));

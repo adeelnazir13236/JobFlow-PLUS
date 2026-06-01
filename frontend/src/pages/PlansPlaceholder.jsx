@@ -8,7 +8,7 @@ import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
 import Table from "../components/Table";
 
-const emptyPlan = { name: "", code: "", description: "", monthlyPrice: 0, yearlyPrice: 0, status: "ACTIVE" };
+const emptyPlan = { name: "", code: "", description: "", monthlyPrice: 0, halfYearlyPrice: 0, yearlyPrice: 0, status: "ACTIVE" };
 const emptyFeature = { code: "", name: "", description: "", moduleGroup: "", status: "ACTIVE" };
 
 export default function PlansPlaceholder() {
@@ -111,12 +111,14 @@ export default function PlansPlaceholder() {
               { key: "name", label: "Name" },
               { key: "code", label: "Code" },
               { key: "monthlyPrice", label: "Monthly", render: (row) => Number(row.monthlyPrice || 0).toLocaleString() },
+              { key: "halfYearlyPrice", label: "Half-Yearly", render: (row) => Number(row.halfYearlyPrice || 0).toLocaleString() },
+              { key: "yearlyPrice", label: "Yearly", render: (row) => Number(row.yearlyPrice || 0).toLocaleString() },
               { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
               { key: "features", label: "Features", render: (row) => row.features?.length || 0 },
               { key: "actions", label: "Actions", render: (row) => (
-                <div className="flex gap-3">
-                  <button className="font-medium text-slate-950" type="button" onClick={() => { setEditingPlan(row); setPlanForm(row); }}>Edit</button>
-                  <button className="font-medium text-slate-950" type="button" onClick={() => openPlanFeatureModal(row)}>Features</button>
+                <div className="flex flex-wrap gap-2">
+                  <Button className="min-h-9 px-3" type="button" onClick={() => { setEditingPlan(row); setPlanForm(row); }}>Edit</Button>
+                  <Button className="min-h-9 px-3" variant="secondary" type="button" onClick={() => openPlanFeatureModal(row)}>Features</Button>
                 </div>
               ) }
             ]}
@@ -134,7 +136,7 @@ export default function PlansPlaceholder() {
               { key: "code", label: "Code" },
               { key: "moduleGroup", label: "Group" },
               { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
-              { key: "actions", label: "Actions", render: (row) => <button className="font-medium text-slate-950" type="button" onClick={() => { setEditingFeature(row); setFeatureForm(row); }}>Edit</button> }
+              { key: "actions", label: "Actions", render: (row) => <Button className="min-h-9 px-3" type="button" onClick={() => { setEditingFeature(row); setFeatureForm(row); }}>Edit</Button> }
             ]}
             rows={features}
           />
@@ -145,8 +147,9 @@ export default function PlansPlaceholder() {
           <Input label="Name" value={planForm.name} onChange={(event) => updatePlanForm("name", event.target.value)} required />
           <Input label="Code" value={planForm.code} onChange={(event) => updatePlanForm("code", event.target.value)} required />
           <Input label="Description" value={planForm.description || ""} onChange={(event) => updatePlanForm("description", event.target.value)} />
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <Input label="Monthly Price" type="number" value={planForm.monthlyPrice} onChange={(event) => updatePlanForm("monthlyPrice", Number(event.target.value))} />
+            <Input label="Half-Yearly Price" type="number" value={planForm.halfYearlyPrice} onChange={(event) => updatePlanForm("halfYearlyPrice", Number(event.target.value))} />
             <Input label="Yearly Price" type="number" value={planForm.yearlyPrice} onChange={(event) => updatePlanForm("yearlyPrice", Number(event.target.value))} />
           </div>
           <label className="block">

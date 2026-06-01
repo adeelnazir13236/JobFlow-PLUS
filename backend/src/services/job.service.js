@@ -3,6 +3,7 @@ import { handleContractJobCompletion } from "./contract.service.js";
 import ApiError from "../utils/ApiError.js";
 import { tenantData, tenantWhere } from "../utils/tenant.js";
 import { validateEnum } from "../utils/validation.js";
+import { safelySendNotification, sendJobNotification } from "./whatsapp.service.js";
 
 const jobStatuses = ["SCHEDULED", "COMPLETED", "CANCELLED", "RESCHEDULED"];
 
@@ -180,7 +181,7 @@ export async function createJob(data, currentUser) {
 
   validateEnum(data.status, jobStatuses, "Job status");
 
-  return prisma.$transaction(async (tx) => {
+  const job = await prisma.$transaction(async (tx) => {
     await validateTenantReferences(tx, data, currentUser);
 
     return tx.job.create({
@@ -201,12 +202,18 @@ export async function createJob(data, currentUser) {
       include: jobInclude
     });
   });
+
+  if (job.assignedAgentId || job.assignedStaffId) {
+    await safelySendNotification(sendJobNotification, job.id, currentUser, "JOB_ASSIGNED", { skipIfSent: true });
+  }
+
+  return job;
 }
 
 export async function updateJob(id, data, currentUser) {
   validateEnum(data.status, jobStatuses, "Job status");
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const existingJob = await tx.job.findFirst({ where: { id, ...tenantWhere(currentUser) } });
 
     if (!existingJob) {
@@ -247,11 +254,26 @@ export async function updateJob(id, data, currentUser) {
       }
     }
 
-    return tx.job.findUnique({
+    const hydratedJob = await tx.job.findUnique({
       where: { id },
       include: jobInclude
     });
+
+    hydratedJob._assignmentChanged = (
+      data.assignedAgentId !== undefined && Number(data.assignedAgentId || 0) !== Number(existingJob.assignedAgentId || 0)
+    ) || (
+      data.assignedStaffId !== undefined && Number(data.assignedStaffId || 0) !== Number(existingJob.assignedStaffId || 0)
+    );
+
+    return hydratedJob;
   });
+
+  if (result._assignmentChanged && (result.assignedAgentId || result.assignedStaffId)) {
+    await safelySendNotification(sendJobNotification, result.id, currentUser, "JOB_ASSIGNED", { skipIfSent: true });
+  }
+
+  delete result._assignmentChanged;
+  return result;
 }
 
 export async function completeJob(id, remarks, currentUser) {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getJob } from "../api/jobService";
+import { getWhatsAppLogs, sendJobWhatsApp } from "../api/whatsappService";
 import Alert from "../components/Alert";
 import Button from "../components/Button";
 import { DetailGrid, DetailItem, DetailPanel } from "../components/DetailPanel";
@@ -18,9 +19,12 @@ function formatDate(value) {
 
 export default function JobDetails() {
   const { id } = useParams();
+  const currentUser = JSON.parse(localStorage.getItem("user") || "null");
+  const canUseWhatsApp = currentUser?.role === "SYSTEM_ADMIN" || currentUser?.features?.includes("WHATSAPP");
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [logs, setLogs] = useState([]);
 
   useEffect(() => {
     async function loadJob() {
@@ -28,6 +32,9 @@ export default function JobDetails() {
         setLoading(true);
         setError("");
         setJob(await getJob(id));
+        if (canUseWhatsApp) {
+          setLogs(await getWhatsAppLogs({ jobId: id }));
+        }
       } catch (err) {
         setError(err.response?.data?.message || "Unable to load job details");
       } finally {
@@ -50,6 +57,16 @@ export default function JobDetails() {
     return <Alert>Job not found</Alert>;
   }
 
+  async function sendWhatsApp() {
+    try {
+      setError("");
+      await sendJobWhatsApp(id);
+      setLogs(await getWhatsAppLogs({ jobId: id }));
+    } catch (err) {
+      setError(err.response?.data?.message || "Unable to send WhatsApp notification");
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -65,6 +82,7 @@ export default function JobDetails() {
             <Link to={`/jobs/${job.id}/edit`}>
               <Button>Edit Job</Button>
             </Link>
+            {canUseWhatsApp && <Button variant="secondary" onClick={sendWhatsApp}>Send WhatsApp</Button>}
           </div>
         }
       />
@@ -116,6 +134,20 @@ export default function JobDetails() {
           />
         </section>
       </div>
+      {canUseWhatsApp && <section className="mt-6">
+        <h2 className="mb-3 text-base font-semibold text-slate-950">WhatsApp History</h2>
+        <Table
+          columns={[
+            { key: "createdAt", label: "Date", render: (row) => new Date(row.createdAt).toLocaleString() },
+            { key: "templateCode", label: "Template" },
+            { key: "phoneNumber", label: "Phone" },
+            { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
+            { key: "errorMessage", label: "Error", render: (row) => row.errorMessage || "N/A" }
+          ]}
+          rows={logs}
+          emptyMessage="No WhatsApp messages for this job"
+        />
+      </section>}
     </>
   );
 }

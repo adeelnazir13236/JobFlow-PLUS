@@ -93,6 +93,7 @@ export default function OrganizationDetails() {
       startDate: subscription.startDate ? subscription.startDate.slice(0, 10) : "",
       endDate: subscription.endDate ? subscription.endDate.slice(0, 10) : ""
     });
+    setOrganization((current) => current ? { ...current, plan: subscription.plan?.code || current.plan, subscriptions: [subscription] } : current);
   }
 
   async function saveOverrides() {
@@ -121,6 +122,10 @@ export default function OrganizationDetails() {
             <div className="flex justify-between gap-4">
               <dt className="text-slate-500">Plan</dt>
               <dd className="font-medium text-slate-950">{organization.plan}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-slate-500">Subscription</dt>
+              <dd className="font-medium text-slate-950"><StatusBadge status={organization.subscriptions?.[0]?.status || "INACTIVE"} /></dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt className="text-slate-500">Email</dt>
@@ -163,10 +168,10 @@ export default function OrganizationDetails() {
         <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-base font-semibold text-slate-950">Subscription</h2>
           <form className="space-y-4" onSubmit={saveSubscription}>
-            <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Plan</span><select className="interactive-field h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" value={subscriptionForm.planId} onChange={(event) => setSubscriptionForm({ ...subscriptionForm, planId: event.target.value })} required><option value="">Select plan</option>{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select></label>
+            <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Plan</span><select className="interactive-field h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" value={subscriptionForm.planId} onChange={(event) => setSubscriptionForm({ ...subscriptionForm, planId: event.target.value })} required><option value="">Select plan</option>{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} ({plan.code})</option>)}</select></label>
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Status</span><select className="interactive-field h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" value={subscriptionForm.status} onChange={(event) => setSubscriptionForm({ ...subscriptionForm, status: event.target.value })}><option value="ACTIVE">ACTIVE</option><option value="INACTIVE">INACTIVE</option><option value="CANCELLED">CANCELLED</option><option value="EXPIRED">EXPIRED</option></select></label>
-              <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Billing Cycle</span><select className="interactive-field h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" value={subscriptionForm.billingCycle} onChange={(event) => setSubscriptionForm({ ...subscriptionForm, billingCycle: event.target.value })}><option value="MONTHLY">MONTHLY</option><option value="YEARLY">YEARLY</option></select></label>
+              <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Status</span><select className="interactive-field h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" value={subscriptionForm.status} onChange={(event) => setSubscriptionForm({ ...subscriptionForm, status: event.target.value })}><option value="ACTIVE">ACTIVE</option><option value="TRIAL">TRIAL</option><option value="INACTIVE">INACTIVE</option><option value="CANCELLED">CANCELLED</option><option value="EXPIRED">EXPIRED</option></select></label>
+              <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Billing Cycle</span><select className="interactive-field h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" value={subscriptionForm.billingCycle} onChange={(event) => setSubscriptionForm({ ...subscriptionForm, billingCycle: event.target.value })}><option value="MONTHLY">MONTHLY</option><option value="HALF_YEARLY">HALF YEARLY</option><option value="YEARLY">YEARLY</option></select></label>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <input className="interactive-field h-10 rounded-md border border-slate-300 px-3 text-sm" type="date" value={subscriptionForm.startDate} onChange={(event) => setSubscriptionForm({ ...subscriptionForm, startDate: event.target.value })} />

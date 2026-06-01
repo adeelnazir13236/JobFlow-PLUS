@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { getPayment } from "../api/paymentService";
+import { getPayment, getPaymentReceiptPdf } from "../api/paymentService";
+import { getWhatsAppLogs, sendPaymentWhatsApp } from "../api/whatsappService";
 import Alert from "../components/Alert";
 import Button from "../components/Button";
 import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
+import Table from "../components/Table";
+import { openPdfBlob } from "../utils/pdf";
 
 function formatAmount(value) {
   return Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -20,9 +23,12 @@ function formatUser(user) {
 
 export default function PaymentDetails() {
   const { id } = useParams();
+  const currentUser = JSON.parse(localStorage.getItem("user") || "null");
+  const canUseWhatsApp = currentUser?.role === "SYSTEM_ADMIN" || currentUser?.features?.includes("WHATSAPP");
   const [payment, setPayment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [logs, setLogs] = useState([]);
 
   useEffect(() => {
     async function loadPayment() {
@@ -30,6 +36,9 @@ export default function PaymentDetails() {
         setLoading(true);
         setError("");
         setPayment(await getPayment(id));
+        if (canUseWhatsApp) {
+          setLogs(await getWhatsAppLogs({ paymentId: id }));
+        }
       } catch (err) {
         setError(err.response?.data?.message || "Unable to load payment details");
       } finally {
@@ -39,6 +48,25 @@ export default function PaymentDetails() {
 
     loadPayment();
   }, [id]);
+
+  async function openReceipt() {
+    try {
+      setError("");
+      openPdfBlob(await getPaymentReceiptPdf(id));
+    } catch (err) {
+      setError(err.response?.data?.message || "Unable to open payment receipt");
+    }
+  }
+
+  async function sendWhatsApp() {
+    try {
+      setError("");
+      await sendPaymentWhatsApp(id);
+      setLogs(await getWhatsAppLogs({ paymentId: id }));
+    } catch (err) {
+      setError(err.response?.data?.message || "Unable to send WhatsApp receipt");
+    }
+  }
 
   if (loading) {
     return <Alert type="info">Loading payment details...</Alert>;
@@ -59,7 +87,9 @@ export default function PaymentDetails() {
         description={payment.invoiceId ? `${payment.customer?.name || "Customer"} - ${payment.invoice?.invoiceNumber}` : `${payment.customer?.name || "Customer"} - Job #${payment.jobId}`}
         action={
           <div className="no-print flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => window.print()}>Print Invoice</Button>
+            <Button variant="secondary" onClick={openReceipt}>Download Receipt</Button>
+            <Button variant="secondary" onClick={openReceipt}>Print Receipt</Button>
+            {canUseWhatsApp && <Button variant="secondary" onClick={sendWhatsApp}>Send WhatsApp</Button>}
             {!payment.invoiceId && (
               <Link to={`/payments/${payment.id}/edit`}>
                 <Button>Edit Payment</Button>
@@ -142,6 +172,20 @@ export default function PaymentDetails() {
           <dd className="mt-2 text-sm font-medium text-slate-950">{payment.remarks || "N/A"}</dd>
         </div>
       </section>
+      {canUseWhatsApp && <section className="mt-6">
+        <h2 className="mb-3 text-base font-semibold text-slate-950">WhatsApp History</h2>
+        <Table
+          columns={[
+            { key: "createdAt", label: "Date", render: (row) => new Date(row.createdAt).toLocaleString() },
+            { key: "templateCode", label: "Template" },
+            { key: "phoneNumber", label: "Phone" },
+            { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
+            { key: "errorMessage", label: "Error", render: (row) => row.errorMessage || "N/A" }
+          ]}
+          rows={logs}
+          emptyMessage="No WhatsApp messages for this payment"
+        />
+      </section>}
     </>
   );
 }

@@ -11,6 +11,7 @@ import {
   JobsIcon,
   PaymentIcon,
   PhoneIcon,
+  RevenueIcon,
   SettingsIcon,
   UsersIcon
 } from "./Icons";
@@ -30,10 +31,12 @@ const groups = [
       { to: "/customers/add", label: "Add Customer", icon: AddIcon, feature: "CUSTOMERS" },
       { to: "/jobs", label: "Jobs", icon: JobsIcon, feature: "JOBS" },
       { to: "/jobs/schedule", label: "Schedule Job", icon: AddIcon, feature: "JOBS" },
+      { to: "/quotations", label: "Quotations", icon: PaymentIcon, feature: "QUOTATIONS" },
       { to: "/contracts", label: "Contracts", icon: JobsIcon, feature: "CONTRACTS" },
       { to: "/contracts/add", label: "Add Contract", icon: AddIcon, feature: "CONTRACTS" },
       { to: "/call-logs", label: "Call Logs", icon: PhoneIcon, feature: "CALL_LOGS" },
-      { to: "/followups", label: "Follow-ups", icon: FollowUpIcon, feature: "FOLLOW_UPS" }
+      { to: "/followups", label: "Follow-ups", icon: FollowUpIcon, feature: "FOLLOW_UPS" },
+      { to: "/service-requests", label: "Service Requests", icon: FollowUpIcon, feature: "CUSTOMER_PORTAL" }
     ]
   },
   {
@@ -45,6 +48,25 @@ const groups = [
     ]
   },
   {
+    label: "Reports",
+    links: [
+      { to: "/reports", label: "Executive Dashboard", icon: RevenueIcon, feature: "REPORTS" },
+      { to: "/reports/financial", label: "Financial Reports", icon: PaymentIcon, feature: "REPORTS" },
+      { to: "/reports/contracts", label: "Contract Reports", icon: JobsIcon, feature: "REPORTS" },
+      { to: "/reports/jobs", label: "Job Reports", icon: CalendarIcon, feature: "REPORTS" },
+      { to: "/reports/customers", label: "Customer Reports", icon: CustomersIcon, feature: "REPORTS" },
+      { to: "/reports/service-requests", label: "Request Reports", icon: FollowUpIcon, feature: "REPORTS" }
+    ]
+  },
+  {
+    label: "Messaging",
+    links: [
+      { to: "/whatsapp/settings", label: "WhatsApp Settings", icon: PhoneIcon, feature: "WHATSAPP" },
+      { to: "/whatsapp/templates", label: "WhatsApp Templates", icon: SettingsIcon, feature: "WHATSAPP" },
+      { to: "/whatsapp/logs", label: "WhatsApp Logs", icon: PhoneIcon, feature: "WHATSAPP" }
+    ]
+  },
+  {
     label: "Platform",
     systemOnly: true,
     links: [
@@ -52,6 +74,7 @@ const groups = [
       { to: "/organizations", label: "Organizations", icon: UsersIcon },
       { to: "/organizations/add", label: "Add Organization", icon: AddIcon },
       { to: "/organizations/admins/add", label: "Add Org Admin", icon: AddIcon },
+      { to: "/organization-billing", label: "Organization Billing", icon: PaymentIcon },
       { to: "/users", label: "Users", icon: UsersIcon },
       { to: "/plans", label: "Plans", icon: SettingsIcon }
     ]

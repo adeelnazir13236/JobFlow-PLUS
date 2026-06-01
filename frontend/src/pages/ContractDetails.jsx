@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { activateContract, addBillingRule, addContractService, cancelContract, getContract, pauseContract } from "../api/contractService";
+import { getWhatsAppLogs, sendContractWhatsApp } from "../api/whatsappService";
 import Alert from "../components/Alert";
 import Button from "../components/Button";
 import Input from "../components/Input";
@@ -18,18 +19,24 @@ function formatAmount(value) {
 
 export default function ContractDetails() {
   const { id } = useParams();
+  const currentUser = JSON.parse(localStorage.getItem("user") || "null");
+  const canUseWhatsApp = currentUser?.role === "SYSTEM_ADMIN" || currentUser?.features?.includes("WHATSAPP");
   const [contract, setContract] = useState(null);
   const [serviceForm, setServiceForm] = useState({ serviceName: "", frequencyType: "MONTHLY", frequencyInterval: 1, totalJobs: "", nextJobDate: "", preferredTime: "09:00" });
   const [billingForm, setBillingForm] = useState({ billingType: "MONTHLY", billingCycle: "MONTHLY", invoiceAfterCompletedJobs: "", invoiceAmount: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [logs, setLogs] = useState([]);
 
   async function loadContract() {
     try {
       setLoading(true);
       setError("");
       setContract(await getContract(id));
+      if (canUseWhatsApp) {
+        setLogs(await getWhatsAppLogs({ contractId: id }));
+      }
     } catch (err) {
       setError(err.response?.data?.message || "Unable to load contract");
     } finally {
@@ -74,6 +81,13 @@ export default function ContractDetails() {
     setBillingForm({ billingType: "MONTHLY", billingCycle: "MONTHLY", invoiceAfterCompletedJobs: "", invoiceAmount: "" });
   }
 
+  async function sendWhatsApp() {
+    await runAction(async () => {
+      await sendContractWhatsApp(id);
+      setLogs(await getWhatsAppLogs({ contractId: id }));
+    });
+  }
+
   if (loading) {
     return <Alert type="info">Loading contract...</Alert>;
   }
@@ -87,7 +101,12 @@ export default function ContractDetails() {
       <PageHeader
         title={contract.contractNumber}
         description={contract.title}
-        action={<Link to="/contracts"><Button variant="secondary">Back</Button></Link>}
+        action={
+          <div className="flex flex-wrap gap-2">
+            <Link to="/contracts"><Button variant="secondary">Back</Button></Link>
+            {canUseWhatsApp && <Button variant="secondary" disabled={saving} onClick={sendWhatsApp}>Send WhatsApp</Button>}
+          </div>
+        }
       />
       {error && <div className="mb-4"><Alert>{error}</Alert></div>}
       <section className="mb-6 rounded-md border border-slate-200 bg-white p-5">
@@ -176,7 +195,7 @@ export default function ContractDetails() {
         </section>
       </div>
 
-      <section className="mt-6">
+      {canUseWhatsApp && <section className="mt-6">
         <h2 className="mb-3 text-lg font-semibold text-slate-800">Generated Jobs</h2>
         <Table
           columns={[
@@ -189,7 +208,7 @@ export default function ContractDetails() {
           rows={contract.jobLinks || []}
           emptyMessage="No generated jobs yet"
         />
-      </section>
+      </section>}
 
       <section className="mt-6">
         <h2 className="mb-3 text-lg font-semibold text-slate-800">Generated Invoices</h2>
@@ -205,6 +224,20 @@ export default function ContractDetails() {
           ]}
           rows={contract.invoices || []}
           emptyMessage="No invoices generated yet"
+        />
+      </section>
+      <section className="mt-6">
+        <h2 className="mb-3 text-lg font-semibold text-slate-800">WhatsApp History</h2>
+        <Table
+          columns={[
+            { key: "createdAt", label: "Date", render: (row) => new Date(row.createdAt).toLocaleString() },
+            { key: "templateCode", label: "Template" },
+            { key: "phoneNumber", label: "Phone" },
+            { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
+            { key: "errorMessage", label: "Error", render: (row) => row.errorMessage || "N/A" }
+          ]}
+          rows={logs}
+          emptyMessage="No WhatsApp messages for this contract"
         />
       </section>
     </>

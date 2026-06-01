@@ -17,7 +17,7 @@ export async function hasFeature(user, featureCode) {
   const subscription = await prisma.organizationSubscription.findFirst({
     where: {
       organizationId: user.organizationId,
-      status: "ACTIVE",
+      status: { in: ["ACTIVE", "TRIAL"] },
       startDate: { lte: now },
       OR: [{ endDate: null }, { endDate: { gte: now } }]
     },
@@ -87,7 +87,7 @@ export async function getFeatureCodesForUser(user) {
   const subscription = await prisma.organizationSubscription.findFirst({
     where: {
       organizationId: user.organizationId,
-      status: "ACTIVE",
+      status: { in: ["ACTIVE", "TRIAL"] },
       startDate: { lte: now },
       OR: [{ endDate: null }, { endDate: { gte: now } }]
     },

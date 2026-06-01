@@ -9,3 +9,8 @@ export async function getInvoice(id) {
   const { data } = await api.get(`/invoices/${id}`);
   return data.invoice;
 }
+
+export async function getInvoicePdf(id) {
+  const { data } = await api.get(`/invoices/${id}/pdf`, { responseType: "blob" });
+  return data;
+}

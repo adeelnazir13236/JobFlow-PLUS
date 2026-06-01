@@ -188,9 +188,9 @@ export default function Users() {
               key: "actions",
               label: "Actions",
               render: (row) => isSystemAdmin && row.role !== "SYSTEM_ADMIN" ? (
-                <div className="flex gap-3">
-                  <button className="font-medium text-slate-950" type="button" onClick={() => openEditModal(row)}>Edit</button>
-                  <button className="font-medium text-slate-950" type="button" onClick={() => setPasswordUser(row)}>Password</button>
+                <div className="flex flex-wrap gap-2">
+                  <Button className="min-h-9 px-3" type="button" onClick={() => openEditModal(row)}>Edit</Button>
+                  <Button className="min-h-9 px-3" variant="secondary" type="button" onClick={() => setPasswordUser(row)}>Password</Button>
                 </div>
               ) : "N/A"
             }

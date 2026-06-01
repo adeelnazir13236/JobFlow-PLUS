@@ -7,11 +7,18 @@ import { parseId, validateEnum, validateOptionalEmail } from "../utils/validatio
 
 const router = Router();
 const organizationStatuses = ["ACTIVE", "INACTIVE", "SUSPENDED"];
-const organizationPlans = ["FREE", "PLUS", "PRO", "ENTERPRISE"];
 
 router.use(authenticate, authorize("SYSTEM_ADMIN"));
 
-function validateOrganizationPayload(data, { partial = false } = {}) {
+async function findActivePlanByCode(code) {
+  if (!code) {
+    return null;
+  }
+
+  return prisma.plan.findFirst({ where: { code, status: "ACTIVE" } });
+}
+
+async function validateOrganizationPayload(data, { partial = false } = {}) {
   if (!partial || data.name !== undefined) {
     if (!data.name?.trim()) {
       throw new ApiError(400, "Organization name is required");
@@ -20,11 +27,20 @@ function validateOrganizationPayload(data, { partial = false } = {}) {
 
   validateOptionalEmail(data.email, "Organization email");
   validateEnum(data.status, organizationStatuses, "Organization status");
-  validateEnum(data.plan, organizationPlans, "Organization plan");
 
   if (!partial && !data.plan) {
     throw new ApiError(400, "Organization plan is required");
   }
+
+  if (data.plan !== undefined) {
+    const plan = await findActivePlanByCode(data.plan);
+    if (!plan) {
+      throw new ApiError(400, "Organization plan must be an active plan");
+    }
+    return plan;
+  }
+
+  return null;
 }
 
 async function ensureUniqueOrganizationEmail(email, organizationId) {
@@ -51,7 +67,7 @@ function organizationData(data) {
     phone: data.phone?.trim() || null,
     address: data.address?.trim() || null,
     status: data.status || "ACTIVE",
-    plan: data.plan || "FREE"
+    plan: data.plan || "STARTER"
   };
 }
 
@@ -59,7 +75,9 @@ router.get("/", asyncHandler(async (req, res) => {
   const { search, status, plan } = req.query;
 
   validateEnum(status, organizationStatuses, "Organization status");
-  validateEnum(plan, organizationPlans, "Organization plan");
+  if (plan && !await findActivePlanByCode(plan)) {
+    throw new ApiError(400, "Organization plan must be an active plan");
+  }
 
   const where = {
     status: status || undefined,
@@ -154,11 +172,23 @@ router.get("/:id", asyncHandler(async (req, res) => {
 }));
 
 router.post("/", asyncHandler(async (req, res) => {
-  validateOrganizationPayload(req.body);
+  const plan = await validateOrganizationPayload(req.body);
   await ensureUniqueOrganizationEmail(req.body.email);
 
-  const organization = await prisma.organization.create({
-    data: organizationData(req.body)
+  const organization = await prisma.$transaction(async (tx) => {
+    const createdOrganization = await tx.organization.create({
+      data: organizationData(req.body)
+    });
+    await tx.organizationSubscription.create({
+      data: {
+        organizationId: createdOrganization.id,
+        planId: plan.id,
+        status: "ACTIVE",
+        billingCycle: "MONTHLY",
+        startDate: new Date()
+      }
+    });
+    return createdOrganization;
   });
 
   res.status(201).json({ organization });
@@ -166,7 +196,7 @@ router.post("/", asyncHandler(async (req, res) => {
 
 router.put("/:id", asyncHandler(async (req, res) => {
   const id = parseId(req.params.id, "Organization ID");
-  validateOrganizationPayload(req.body, { partial: true });
+  const requestedPlan = await validateOrganizationPayload(req.body, { partial: true });
   await ensureUniqueOrganizationEmail(req.body.email, id);
 
   const existingOrganization = await prisma.organization.findUnique({ where: { id } });
@@ -175,9 +205,29 @@ router.put("/:id", asyncHandler(async (req, res) => {
     throw new ApiError(404, "Organization not found");
   }
 
-  const organization = await prisma.organization.update({
-    where: { id },
-    data: organizationData({ ...existingOrganization, ...req.body })
+  const organization = await prisma.$transaction(async (tx) => {
+    const updatedOrganization = await tx.organization.update({
+      where: { id },
+      data: organizationData({ ...existingOrganization, ...req.body })
+    });
+
+    if (requestedPlan && requestedPlan.code !== existingOrganization.plan) {
+      await tx.organizationSubscription.updateMany({
+        where: { organizationId: id, status: { in: ["ACTIVE", "TRIAL"] } },
+        data: { status: "INACTIVE" }
+      });
+      await tx.organizationSubscription.create({
+        data: {
+          organizationId: id,
+          planId: requestedPlan.id,
+          status: "ACTIVE",
+          billingCycle: "MONTHLY",
+          startDate: new Date()
+        }
+      });
+    }
+
+    return updatedOrganization;
   });
 
   res.json({ organization });
@@ -202,8 +252,8 @@ router.patch("/:id/status", asyncHandler(async (req, res) => {
 router.put("/:id/subscription", asyncHandler(async (req, res) => {
   const organizationId = parseId(req.params.id, "Organization ID");
   const planId = parseId(req.body.planId, "Plan ID");
-  validateEnum(req.body.status, ["ACTIVE", "INACTIVE", "CANCELLED", "EXPIRED"], "Subscription status");
-  validateEnum(req.body.billingCycle, ["MONTHLY", "YEARLY"], "Billing cycle");
+  validateEnum(req.body.status, ["ACTIVE", "TRIAL", "INACTIVE", "CANCELLED", "EXPIRED"], "Subscription status");
+  validateEnum(req.body.billingCycle, ["MONTHLY", "HALF_YEARLY", "YEARLY"], "Billing cycle");
 
   const plan = await prisma.plan.findUnique({ where: { id: planId } });
   if (!plan || plan.status !== "ACTIVE") {
@@ -211,7 +261,7 @@ router.put("/:id/subscription", asyncHandler(async (req, res) => {
   }
 
   await prisma.organizationSubscription.updateMany({
-    where: { organizationId, status: "ACTIVE" },
+    where: { organizationId, status: { in: ["ACTIVE", "TRIAL"] } },
     data: { status: "INACTIVE" }
   });
 

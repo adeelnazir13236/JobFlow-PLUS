@@ -10,6 +10,11 @@ export async function getPayment(id) {
   return data.payment;
 }
 
+export async function getPaymentReceiptPdf(id) {
+  const { data } = await api.get(`/payments/${id}/receipt`, { responseType: "blob" });
+  return data;
+}
+
 export async function createPayment(payload) {
   const { data } = await api.post("/payments", payload);
   return data.payment;

@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { getInvoice } from "../api/invoiceService";
+import { getInvoice, getInvoicePdf } from "../api/invoiceService";
 import { createPayment } from "../api/paymentService";
+import { getWhatsAppLogs, sendInvoiceWhatsApp } from "../api/whatsappService";
 import Alert from "../components/Alert";
 import Button from "../components/Button";
 import Input from "../components/Input";
 import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
 import Table from "../components/Table";
+import { openPdfBlob } from "../utils/pdf";
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleDateString() : "N/A";
@@ -19,10 +21,13 @@ function formatAmount(value) {
 
 export default function InvoiceDetails() {
   const { id } = useParams();
+  const currentUser = JSON.parse(localStorage.getItem("user") || "null");
+  const canUseWhatsApp = currentUser?.role === "SYSTEM_ADMIN" || currentUser?.features?.includes("WHATSAPP");
   const [invoice, setInvoice] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [logs, setLogs] = useState([]);
   const [form, setForm] = useState({
     paymentDate: new Date().toISOString().slice(0, 10),
     amount: "",
@@ -37,6 +42,9 @@ export default function InvoiceDetails() {
       setError("");
       const nextInvoice = await getInvoice(id);
       setInvoice(nextInvoice);
+      if (canUseWhatsApp) {
+        setLogs(await getWhatsAppLogs({ invoiceId: id }));
+      }
       setForm((current) => ({ ...current, amount: current.amount || String(nextInvoice.balanceAmount || nextInvoice.amount || "") }));
     } catch (err) {
       setError(err.response?.data?.message || "Unable to load invoice");
@@ -69,6 +77,28 @@ export default function InvoiceDetails() {
     }
   }
 
+  async function openPdf() {
+    try {
+      setError("");
+      openPdfBlob(await getInvoicePdf(id));
+    } catch (err) {
+      setError(err.response?.data?.message || "Unable to open invoice PDF");
+    }
+  }
+
+  async function sendWhatsApp() {
+    try {
+      setSaving(true);
+      setError("");
+      await sendInvoiceWhatsApp(id);
+      setLogs(await getWhatsAppLogs({ invoiceId: id }));
+    } catch (err) {
+      setError(err.response?.data?.message || "Unable to send WhatsApp notification");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loading) {
     return <Alert type="info">Loading invoice...</Alert>;
   }
@@ -82,7 +112,14 @@ export default function InvoiceDetails() {
       <PageHeader
         title={invoice.invoiceNumber}
         description="Contract billing invoice"
-        action={<Link to="/invoices"><Button variant="secondary">Back</Button></Link>}
+        action={
+          <div className="flex flex-wrap gap-2">
+            <Link to="/invoices"><Button variant="secondary">Back</Button></Link>
+            <Button variant="secondary" onClick={openPdf}>Download PDF</Button>
+            <Button variant="secondary" onClick={openPdf}>Print PDF</Button>
+            {canUseWhatsApp && <Button variant="secondary" disabled={saving} onClick={sendWhatsApp}>Send WhatsApp</Button>}
+          </div>
+        }
       />
       {error && <div className="mb-4"><Alert>{error}</Alert></div>}
       <section className="rounded-md border border-slate-200 bg-white p-5">
@@ -117,7 +154,7 @@ export default function InvoiceDetails() {
           <Button type="submit" disabled={saving}>{saving ? "Recording..." : "Record Payment"}</Button>
         </form>
       )}
-      <section className="mt-6">
+      {canUseWhatsApp && <section className="mt-6">
         <h2 className="mb-3 text-base font-semibold text-slate-950">Payment History</h2>
         <Table
           columns={[
@@ -131,6 +168,20 @@ export default function InvoiceDetails() {
           ]}
           rows={invoice.payments || []}
           emptyMessage="No payments recorded"
+        />
+      </section>}
+      <section className="mt-6">
+        <h2 className="mb-3 text-base font-semibold text-slate-950">WhatsApp History</h2>
+        <Table
+          columns={[
+            { key: "createdAt", label: "Date", render: (row) => new Date(row.createdAt).toLocaleString() },
+            { key: "templateCode", label: "Template" },
+            { key: "phoneNumber", label: "Phone" },
+            { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
+            { key: "errorMessage", label: "Error", render: (row) => row.errorMessage || "N/A" }
+          ]}
+          rows={logs}
+          emptyMessage="No WhatsApp messages for this invoice"
         />
       </section>
     </>

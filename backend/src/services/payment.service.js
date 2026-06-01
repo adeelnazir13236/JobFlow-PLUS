@@ -2,6 +2,7 @@ import prisma from "../config/prisma.js";
 import ApiError from "../utils/ApiError.js";
 import { tenantData, tenantWhere } from "../utils/tenant.js";
 import { validateEnum } from "../utils/validation.js";
+import { safelySendNotification, sendPaymentNotification } from "./whatsapp.service.js";
 
 export const paymentStatuses = ["PENDING", "PARTIAL_PAID", "PARTIALLY_PAID", "PAID", "CANCELLED", "REFUNDED"];
 export const paymentMethods = ["CASH", "BANK_TRANSFER", "CHEQUE", "CARD", "ONLINE", "JAZZCASH", "EASYPAISA", "OTHER"];
@@ -280,7 +281,7 @@ export async function getPaymentById(id, currentUser) {
 
 export async function createPayment(data, currentUser) {
   if (data.invoiceId) {
-    return prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const paymentData = await buildInvoicePaymentData(data, undefined, currentUser, tx);
       const payment = await tx.payment.create({
         data: {
@@ -301,6 +302,9 @@ export async function createPayment(data, currentUser) {
 
       return tx.payment.findUnique({ where: { id: payment.id }, include: paymentInclude });
     }, { isolationLevel: "Serializable" });
+
+    await safelySendNotification(sendPaymentNotification, result.id, currentUser, { skipIfSent: true });
+    return result;
   }
 
   const paymentData = await buildLegacyPaymentData(data, undefined, currentUser);
@@ -312,7 +316,7 @@ export async function createPayment(data, currentUser) {
     throw new ApiError(409, "A payment or invoice already exists for this job");
   }
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const payment = await tx.payment.create({
       data: {
         ...paymentData,
@@ -331,6 +335,9 @@ export async function createPayment(data, currentUser) {
       include: paymentInclude
     });
   });
+
+  await safelySendNotification(sendPaymentNotification, result.id, currentUser, { skipIfSent: true });
+  return result;
 }
 
 export async function updatePayment(id, data, currentUser) {

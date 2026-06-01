@@ -9,9 +9,15 @@ import followUpRoutes from "./routes/followUp.routes.js";
 import invoiceRoutes from "./routes/invoice.routes.js";
 import jobRoutes from "./routes/job.routes.js";
 import organizationRoutes from "./routes/organization.routes.js";
+import organizationBillingRoutes from "./routes/organizationBilling.routes.js";
 import paymentRoutes from "./routes/payment.routes.js";
 import planRoutes from "./routes/plan.routes.js";
+import portalRoutes from "./routes/portal.routes.js";
+import quotationRoutes from "./routes/quotation.routes.js";
+import reportRoutes from "./routes/report.routes.js";
+import serviceRequestRoutes from "./routes/serviceRequest.routes.js";
 import userRoutes from "./routes/user.routes.js";
+import whatsappRoutes from "./routes/whatsapp.routes.js";
 import { errorHandler, notFound } from "./middleware/error.js";
 
 const app = express();
@@ -40,15 +46,21 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/portal", portalRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/jobs", jobRoutes);
 app.use("/api/contracts", contractRoutes);
 app.use("/api/invoices", invoiceRoutes);
+app.use("/api/quotations", quotationRoutes);
+app.use("/api/reports", reportRoutes);
 app.use("/api/organizations", organizationRoutes);
+app.use("/api/organization-billing", organizationBillingRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/plans", planRoutes);
+app.use("/api/service-requests", serviceRequestRoutes);
+app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/call-logs", callLogRoutes);
 app.use("/api/followups", followUpRoutes);
 

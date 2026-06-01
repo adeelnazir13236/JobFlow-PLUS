@@ -22,10 +22,20 @@ const featureSeeds = [
 
 const planSeeds = [
   {
+    name: "Demo",
+    code: "DEMO",
+    description: "Trial access for evaluating JOBFLOW PLUS before paid subscription.",
+    monthlyPrice: 0,
+    halfYearlyPrice: 0,
+    yearlyPrice: 0,
+    features: ["DASHBOARD", "CUSTOMERS", "JOBS", "FOLLOW_UPS", "CALL_LOGS"]
+  },
+  {
     name: "Starter",
     code: "STARTER",
     description: "Essential field operations for small teams.",
     monthlyPrice: 0,
+    halfYearlyPrice: 0,
     yearlyPrice: 0,
     features: ["DASHBOARD", "CUSTOMERS", "JOBS", "FOLLOW_UPS", "CALL_LOGS"]
   },
@@ -34,6 +44,7 @@ const planSeeds = [
     code: "PROFESSIONAL",
     description: "Advanced operations, finance, and recurring work.",
     monthlyPrice: 49,
+    halfYearlyPrice: 294,
     yearlyPrice: 499,
     features: ["DASHBOARD", "CUSTOMERS", "JOBS", "FOLLOW_UPS", "CALL_LOGS", "REPORTS", "CONTRACTS", "RECURRING_JOBS", "QUOTATIONS", "INVOICES", "PAYMENTS"]
   },
@@ -42,9 +53,20 @@ const planSeeds = [
     code: "ENTERPRISE",
     description: "Full platform access with integrations, portal, and AI.",
     monthlyPrice: 149,
+    halfYearlyPrice: 894,
     yearlyPrice: 1499,
     features: featureSeeds.map(([code]) => code)
   }
+];
+
+const whatsappTemplateSeeds = [
+  ["QUOTATION_SENT", "Quotation Sent", "SALES", "Hello {{customer_name}}, your quotation {{quotation_number}} for {{amount}} is ready. View: {{document_link}}"],
+  ["INVOICE_SENT", "Invoice Sent", "FINANCE", "Hello {{customer_name}}, invoice {{invoice_number}} for {{amount}} has been generated. View: {{document_link}}"],
+  ["PAYMENT_RECEIVED", "Payment Received", "FINANCE", "Hello {{customer_name}}, payment of {{amount}} has been received. Receipt: {{document_link}}"],
+  ["JOB_ASSIGNED", "Job Assigned", "JOBS", "Hello {{customer_name}}, your job is scheduled for {{job_date}} at {{job_time}}."],
+  ["JOB_REMINDER", "Job Reminder", "JOBS", "Hello {{customer_name}}, reminder: your job is scheduled for {{job_date}} at {{job_time}}."],
+  ["CONTRACT_RENEWAL", "Contract Renewal", "CONTRACTS", "Hello {{customer_name}}, contract {{contract_number}} expires on {{contract_end_date}}. Please contact us for renewal."],
+  ["PAYMENT_REMINDER", "Payment Reminder", "FINANCE", "Hello {{customer_name}}, payment reminder for invoice {{invoice_number}}. Outstanding amount: {{amount}}. Due date: {{due_date}}."]
 ];
 
 function startOfDay(offsetDays = 0, hour = 10) {
@@ -105,8 +127,8 @@ async function seedPlansAndFeatures() {
   for (const seed of planSeeds) {
     const plan = await prisma.plan.upsert({
       where: { code: seed.code },
-      update: { name: seed.name, description: seed.description, monthlyPrice: seed.monthlyPrice, yearlyPrice: seed.yearlyPrice, status: "ACTIVE" },
-      create: { name: seed.name, code: seed.code, description: seed.description, monthlyPrice: seed.monthlyPrice, yearlyPrice: seed.yearlyPrice, status: "ACTIVE" }
+      update: { name: seed.name, description: seed.description, monthlyPrice: seed.monthlyPrice, halfYearlyPrice: seed.halfYearlyPrice, yearlyPrice: seed.yearlyPrice, status: "ACTIVE" },
+      create: { name: seed.name, code: seed.code, description: seed.description, monthlyPrice: seed.monthlyPrice, halfYearlyPrice: seed.halfYearlyPrice, yearlyPrice: seed.yearlyPrice, status: "ACTIVE" }
     });
     plansByCode[plan.code] = plan;
     await prisma.planFeature.deleteMany({ where: { planId: plan.id } });
@@ -117,6 +139,23 @@ async function seedPlansAndFeatures() {
   }
 
   return { featuresByCode, plansByCode };
+}
+
+async function seedWhatsAppSetup(organization) {
+  const existingSetting = await prisma.whatsAppSetting.findFirst({ where: { organizationId: organization.id } });
+  if (existingSetting) {
+    await prisma.whatsAppSetting.update({ where: { id: existingSetting.id }, data: { providerType: "MOCK", senderNumber: "+10000000000", isActive: true } });
+  } else {
+    await prisma.whatsAppSetting.create({ data: { organizationId: organization.id, providerType: "MOCK", senderNumber: "+10000000000", isActive: true } });
+  }
+
+  for (const [templateCode, templateName, category, messageBody] of whatsappTemplateSeeds) {
+    await prisma.whatsAppTemplate.upsert({
+      where: { organizationId_templateCode: { organizationId: organization.id, templateCode } },
+      update: { templateName, category, messageBody, isSystemTemplate: true, isActive: true },
+      create: { organizationId: organization.id, templateCode, templateName, category, messageBody, isSystemTemplate: true, isActive: true }
+    });
+  }
 }
 
 async function assignSubscription(organization, plan) {
@@ -307,6 +346,43 @@ async function upsertPayment(organization, customer, job, admin, paymentSeed) {
   });
 }
 
+async function createPortalUser(organization, customer, portalSeed) {
+  return prisma.customerPortalUser.create({
+    data: {
+      organizationId: organization.id,
+      customerId: customer.id,
+      name: portalSeed.name || `${customer.name} Portal User`,
+      email: portalSeed.email,
+      phone: portalSeed.phone || customer.phone,
+      passwordHash: password,
+      status: portalSeed.status || "ACTIVE"
+    }
+  });
+}
+
+async function createServiceRequest(organization, customer, portalUser, requestSeed) {
+  const request = await prisma.serviceRequest.create({
+    data: {
+      organizationId: organization.id,
+      customerId: customer.id,
+      portalUserId: portalUser?.id || null,
+      requestNumber: `TMP-SEED-SR-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+      requestType: requestSeed.requestType,
+      title: requestSeed.title,
+      description: requestSeed.description,
+      priority: requestSeed.priority || "MEDIUM",
+      status: requestSeed.status || "OPEN",
+      relatedContractId: requestSeed.relatedContractId || null,
+      relatedJobId: requestSeed.relatedJobId || null
+    }
+  });
+
+  return prisma.serviceRequest.update({
+    where: { id: request.id },
+    data: { requestNumber: `SR-SEED-${organization.id}-${request.id}` }
+  });
+}
+
 async function seedContractExample(organization, customer, admin, staff, contractSeed) {
   const contract = await prisma.contract.create({
     data: {
@@ -448,6 +524,112 @@ async function seedContractExample(organization, customer, admin, staff, contrac
   return { contract, job };
 }
 
+function quotationTotals(items, discountType = null, discountValue = 0, taxRate = 0) {
+  const normalizedItems = items.map((item) => ({
+    ...item,
+    quantity: Number(item.quantity),
+    unitPrice: Number(item.unitPrice),
+    lineTotal: Number(item.quantity) * Number(item.unitPrice)
+  }));
+  const subtotal = normalizedItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  const discountAmount = discountType === "PERCENTAGE"
+    ? subtotal * (Number(discountValue) / 100)
+    : discountType === "FIXED"
+      ? Math.min(Number(discountValue), subtotal)
+      : 0;
+  const taxableAmount = Math.max(subtotal - discountAmount, 0);
+  const taxAmount = taxableAmount * (Number(taxRate) / 100);
+
+  return {
+    items: normalizedItems,
+    subtotal,
+    discountAmount,
+    taxAmount,
+    totalAmount: taxableAmount + taxAmount
+  };
+}
+
+async function createSeedQuotation(organization, customer, admin, quotationSeed) {
+  const totals = quotationTotals(quotationSeed.items, quotationSeed.discountType, quotationSeed.discountValue, quotationSeed.taxRate);
+
+  const quotation = await prisma.quotation.create({
+    data: {
+      organizationId: organization.id,
+      customerId: customer.id,
+      quotationNumber: quotationSeed.quotationNumber,
+      title: quotationSeed.title,
+      description: quotationSeed.description,
+      quotationDate: quotationSeed.quotationDate,
+      validUntil: quotationSeed.validUntil,
+      status: quotationSeed.status,
+      subtotal: totals.subtotal,
+      discountType: quotationSeed.discountType,
+      discountValue: quotationSeed.discountValue || 0,
+      discountAmount: totals.discountAmount,
+      taxRate: quotationSeed.taxRate || 0,
+      taxAmount: totals.taxAmount,
+      totalAmount: totals.totalAmount,
+      notes: quotationSeed.notes,
+      terms: quotationSeed.terms,
+      createdByUserId: admin.id,
+      items: {
+        create: totals.items.map((item) => ({
+          organizationId: organization.id,
+          itemName: item.itemName,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          lineTotal: item.lineTotal
+        }))
+      }
+    }
+  });
+
+  if (quotationSeed.convertToJob) {
+    const job = await prisma.job.create({
+      data: {
+        organizationId: organization.id,
+        customerId: customer.id,
+        scheduledDate: addDays(new Date(), 3, 10),
+        scheduledTime: "10:00",
+        status: "SCHEDULED",
+        remarks: `${quotation.title}\n\n${quotation.description || ""}`,
+        createdById: admin.id,
+        updatedById: admin.id
+      }
+    });
+    await prisma.quotation.update({
+      where: { id: quotation.id },
+      data: { status: "CONVERTED", convertedToType: "JOB", convertedJobId: job.id }
+    });
+    return { quotation, job };
+  }
+
+  if (quotationSeed.convertToContract) {
+    const contract = await prisma.contract.create({
+      data: {
+        organizationId: organization.id,
+        customerId: customer.id,
+        contractNumber: `CON-${quotation.quotationNumber}`,
+        title: quotation.title,
+        description: [quotation.description, quotation.notes, quotation.terms].filter(Boolean).join("\n\n"),
+        startDate: new Date(),
+        endDate: addDays(new Date(), 365, 10),
+        contractValue: quotation.totalAmount,
+        status: "DRAFT",
+        createdByUserId: admin.id
+      }
+    });
+    await prisma.quotation.update({
+      where: { id: quotation.id },
+      data: { status: "CONVERTED", convertedToType: "CONTRACT", convertedContractId: contract.id }
+    });
+    return { quotation, contract };
+  }
+
+  return { quotation };
+}
+
 const systemAdmin = await prisma.user.upsert({
   where: { email: "system.admin@jobflowplus.com" },
   update: { name: "System Admin", password, role: "SYSTEM_ADMIN", status: "ACTIVE", organizationId: null },
@@ -467,7 +649,7 @@ const organizationSeeds = [
       plan: "STARTER"
     },
     subscriptionPlan: "STARTER",
-    overrides: ["WHATSAPP"],
+    overrides: ["WHATSAPP", "CUSTOMER_PORTAL"],
     users: [
       { name: "Cleaning Admin", email: "admin@sample-cleaning.test", role: "ADMIN", status: "ACTIVE" },
       { name: "Cleaning Agent", email: "agent@sample-cleaning.test", role: "AGENT", status: "ACTIVE" },
@@ -533,8 +715,15 @@ const summary = {
   callLogs: 0,
   payments: 0,
   contracts: 0,
-  invoices: 0
+  invoices: 0,
+  quotations: 0,
+  whatsappTemplates: 0,
+  whatsappLogs: 0,
+  portalUsers: 0,
+  serviceRequests: 0
 };
+
+const portalLogins = [];
 
 for (const seed of organizationSeeds) {
   const organization = await upsertOrganization(seed.organization);
@@ -559,7 +748,11 @@ for (const seed of organizationSeeds) {
   const agent = users.find((user) => user.role === "AGENT");
   const staff = users.find((user) => user.role === "STAFF");
 
+  await prisma.whatsAppMessageLog.deleteMany({ where: { organizationId: organization.id } });
+  await prisma.serviceRequest.deleteMany({ where: { organizationId: organization.id } });
+  await prisma.customerPortalUser.deleteMany({ where: { organizationId: organization.id } });
   await prisma.invoice.deleteMany({ where: { organizationId: organization.id } });
+  await prisma.quotation.deleteMany({ where: { organizationId: organization.id } });
   await prisma.contract.deleteMany({ where: { organizationId: organization.id } });
   await prisma.payment.deleteMany({ where: { organizationId: organization.id } });
   await prisma.followUp.deleteMany({ where: { organizationId: organization.id } });
@@ -567,6 +760,8 @@ for (const seed of organizationSeeds) {
   await prisma.job.deleteMany({ where: { organizationId: organization.id } });
   await prisma.customerSystem.deleteMany({ where: { organizationId: organization.id } });
   await prisma.customer.deleteMany({ where: { organizationId: organization.id } });
+  await seedWhatsAppSetup(organization);
+  summary.whatsappTemplates += whatsappTemplateSeeds.length;
 
   const createdCustomers = [];
   for (let index = 0; index < seed.customers.length; index += 1) {
@@ -628,7 +823,56 @@ for (const seed of organizationSeeds) {
     }
   }
 
+  let portalUser = null;
+  if (createdCustomers[0]) {
+    portalUser = await createPortalUser(organization, createdCustomers[0], {
+      name: `${createdCustomers[0].name} Portal`,
+      email: `${slug(createdCustomers[0].name)}.portal@${slug(organization.name)}.test`,
+      phone: createdCustomers[0].phone
+    });
+    summary.portalUsers += 1;
+    portalLogins.push(`${portalUser.email} / 123456 (${seed.subscriptionPlan}${seed.overrides?.includes("CUSTOMER_PORTAL") || seed.subscriptionPlan === "ENTERPRISE" ? ", portal enabled" : ", portal blocked by plan"})`);
+  }
+
+  if (portalUser) {
+    const portalQuotation = await createSeedQuotation(organization, createdCustomers[0], admin, {
+      quotationNumber: `QUO-PORTAL-${organization.id}`,
+      title: `${createdCustomers[0].name} portal estimate`,
+      description: "Sample quotation visible in the customer portal.",
+      quotationDate: startOfDay(-1, 10),
+      validUntil: addDays(new Date(), 14, 10),
+      status: "SENT",
+      discountType: null,
+      discountValue: 0,
+      taxRate: 0,
+      notes: "Customer can approve or reject this quotation from the portal.",
+      terms: "Valid for 14 days.",
+      items: [{ itemName: "Portal sample service", description: "Service estimate for portal testing", quantity: 1, unitPrice: createdCustomers[0].jobPaymentAmount }]
+    });
+    if (portalQuotation.quotation) {
+      summary.quotations += 1;
+    }
+  }
+
   if (seed.subscriptionPlan === "PROFESSIONAL") {
+    const quotationSeeds = [
+      { quotationNumber: "QUO-SEED-DRAFT", title: "Draft maintenance estimate", description: "General repair estimate awaiting review.", quotationDate: startOfDay(-2, 10), validUntil: addDays(new Date(), 14, 10), status: "DRAFT", discountType: null, discountValue: 0, taxRate: 0, notes: "Draft quotation", terms: "Valid for 14 days", items: [{ itemName: "Inspection", description: "Site inspection", quantity: 1, unitPrice: 5000 }, { itemName: "Repair labor", description: "Estimated labor", quantity: 2, unitPrice: 4500 }] },
+      { quotationNumber: "QUO-SEED-SENT", title: "Sent maintenance estimate", description: "Sent quotation for facility service.", quotationDate: startOfDay(-1, 10), validUntil: addDays(new Date(), 15, 10), status: "SENT", discountType: "PERCENTAGE", discountValue: 5, taxRate: 0, notes: "Sent to customer", terms: "Payment on approval", items: [{ itemName: "Preventive service", description: "One-time preventive service", quantity: 1, unitPrice: 18000 }] },
+      { quotationNumber: "QUO-SEED-ACCEPTED", title: "Accepted maintenance estimate", description: "Accepted quotation ready for conversion.", quotationDate: startOfDay(0, 10), validUntil: addDays(new Date(), 20, 10), status: "ACCEPTED", discountType: "FIXED", discountValue: 1000, taxRate: 5, notes: "Customer approved by phone", terms: "Schedule within this week", items: [{ itemName: "Emergency repair", description: "Repair work", quantity: 1, unitPrice: 25000 }, { itemName: "Parts", description: "Replacement parts", quantity: 3, unitPrice: 2500 }] },
+      { quotationNumber: "QUO-SEED-JOB", title: "Converted job quotation", description: "Quotation already converted into a one-time job.", quotationDate: startOfDay(-5, 10), validUntil: addDays(new Date(), 10, 10), status: "ACCEPTED", discountType: null, discountValue: 0, taxRate: 0, notes: "Converted to job", terms: "Standard terms", convertToJob: true, items: [{ itemName: "One-time service", description: "Converted job service", quantity: 1, unitPrice: 12000 }] },
+      { quotationNumber: "QUO-SEED-CONTRACT", title: "Converted contract quotation", description: "Quotation already converted into a draft contract.", quotationDate: startOfDay(-4, 10), validUntil: addDays(new Date(), 12, 10), status: "ACCEPTED", discountType: null, discountValue: 0, taxRate: 0, notes: "Converted to contract", terms: "Add service schedule later", convertToContract: true, items: [{ itemName: "Annual support", description: "Draft contract conversion", quantity: 12, unitPrice: 9000 }] }
+    ];
+    for (const quotationSeed of quotationSeeds) {
+      const result = await createSeedQuotation(organization, createdCustomers[0], admin, quotationSeed);
+      summary.quotations += 1;
+      if (result.job) {
+        summary.jobs += 1;
+      }
+      if (result.contract) {
+        summary.contracts += 1;
+      }
+    }
+
     const { contract } = await seedContractExample(organization, createdCustomers[0], admin, staff, {
       contractNumber: "AMC-MAINT-36",
       title: "Annual Maintenance",
@@ -686,6 +930,52 @@ for (const seed of organizationSeeds) {
       summary.payments += 1;
     }
   }
+
+  if (portalUser) {
+    const sampleContract = await prisma.contract.findFirst({ where: { organizationId: organization.id, customerId: createdCustomers[0].id }, orderBy: { createdAt: "desc" } });
+    const sampleJob = await prisma.job.findFirst({ where: { organizationId: organization.id, customerId: createdCustomers[0].id }, orderBy: { scheduledDate: "desc" } });
+    await createServiceRequest(organization, createdCustomers[0], portalUser, {
+      requestType: "COMPLAINT",
+      title: "Service quality follow-up",
+      description: "Customer reported that one area needs a follow-up visit.",
+      priority: "HIGH",
+      status: "OPEN",
+      relatedContractId: sampleContract?.id,
+      relatedJobId: sampleJob?.id
+    });
+    await createServiceRequest(organization, createdCustomers[0], portalUser, {
+      requestType: "NEW_SERVICE",
+      title: "Request additional service",
+      description: "Customer requested pricing for an additional service slot.",
+      priority: "MEDIUM",
+      status: "IN_REVIEW"
+    });
+    summary.serviceRequests += 2;
+  }
+
+  const sampleQuotation = await prisma.quotation.findFirst({ where: { organizationId: organization.id }, orderBy: { createdAt: "desc" } });
+  const sampleInvoice = await prisma.invoice.findFirst({ where: { organizationId: organization.id }, orderBy: { createdAt: "desc" } });
+  const samplePayment = await prisma.payment.findFirst({ where: { organizationId: organization.id }, orderBy: { createdAt: "desc" } });
+  const sampleCustomer = createdCustomers[0];
+  const sampleLogs = [
+    sampleQuotation ? { templateCode: "QUOTATION_SENT", quotationId: sampleQuotation.id, customerId: sampleQuotation.customerId, messageBody: `Seed WhatsApp quotation message for ${sampleQuotation.quotationNumber}` } : null,
+    sampleInvoice ? { templateCode: "INVOICE_SENT", invoiceId: sampleInvoice.id, contractId: sampleInvoice.contractId, customerId: sampleInvoice.customerId, messageBody: `Seed WhatsApp invoice message for ${sampleInvoice.invoiceNumber}` } : null,
+    samplePayment ? { templateCode: "PAYMENT_RECEIVED", paymentId: samplePayment.id, invoiceId: samplePayment.invoiceId, contractId: samplePayment.contractId, jobId: samplePayment.jobId, customerId: samplePayment.customerId, messageBody: `Seed WhatsApp payment message for ${samplePayment.paymentNumber || samplePayment.invoiceNumber}` } : null
+  ].filter(Boolean);
+
+  for (const log of sampleLogs) {
+    await prisma.whatsAppMessageLog.create({
+      data: {
+        organizationId: organization.id,
+        phoneNumber: sampleCustomer?.whatsapp || sampleCustomer?.phone || "N/A",
+        providerType: "MOCK",
+        status: "SENT",
+        sentAt: new Date(),
+        ...log
+      }
+    });
+    summary.whatsappLogs += 1;
+  }
 }
 
 console.log(JSON.stringify({
@@ -702,7 +992,8 @@ console.log(JSON.stringify({
     solarAdmin: "admin@trial-solar.test / 123456",
     solarAgent: "agent@trial-solar.test / 123456",
     solarStaff: "staff@trial-solar.test / 123456"
-  }
+  },
+  portalLogins
 }, null, 2));
 
 await prisma.$disconnect();

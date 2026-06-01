@@ -31,6 +31,7 @@ model User {
   createdFollowUps         FollowUp[]        @relation("FollowUpCreatedBy")
   updatedFollowUps         FollowUp[]        @relation("FollowUpUpdatedBy")
   createdContracts         Contract[]        @relation("ContractCreatedBy")
+  createdQuotations        Quotation[]       @relation("QuotationCreatedBy")
   assignedContractServices ContractService[] @relation("ContractServiceAssignedUser")
   createdAt                DateTime          @default(now())
   updatedAt                DateTime          @updatedAt
@@ -49,6 +50,8 @@ model Organization {
   users                User[]
   subscriptions        OrganizationSubscription[]
   featureOverrides     OrganizationFeature[]
+  billingInvoices      OrganizationBillingInvoice[]
+  billingPayments      OrganizationBillingPayment[]
   customers            Customer[]
   customerSystems      CustomerSystem[]
   jobs                 Job[]
@@ -60,6 +63,13 @@ model Organization {
   contractBillingRules ContractBillingRule[]
   contractJobLinks     ContractJobLink[]
   invoices             Invoice[]
+  quotations           Quotation[]
+  quotationItems       QuotationItem[]
+  whatsappSettings     WhatsAppSetting[]
+  whatsappTemplates    WhatsAppTemplate[]
+  whatsappMessageLogs  WhatsAppMessageLog[]
+  customerPortalUsers  CustomerPortalUser[]
+  serviceRequests      ServiceRequest[]
   createdAt            DateTime                   @default(now()) @map("created_at")
   updatedAt            DateTime                   @updatedAt @map("updated_at")
 
@@ -72,10 +82,12 @@ model Plan {
   code          String                     @unique
   description   String?                    @db.Text
   monthlyPrice  Decimal                    @default(0) @map("monthly_price") @db.Decimal(12, 2)
+  halfYearlyPrice Decimal                  @default(0) @map("half_yearly_price") @db.Decimal(12, 2)
   yearlyPrice   Decimal                    @default(0) @map("yearly_price") @db.Decimal(12, 2)
   status        String                     @default("ACTIVE")
   features      PlanFeature[]
   subscriptions OrganizationSubscription[]
+  billingInvoices OrganizationBillingInvoice[]
   createdAt     DateTime                   @default(now()) @map("created_at")
   updatedAt     DateTime                   @updatedAt @map("updated_at")
 
@@ -120,12 +132,67 @@ model OrganizationSubscription {
   billingCycle   String       @default("MONTHLY") @map("billing_cycle")
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   plan           Plan         @relation(fields: [planId], references: [id], onDelete: Restrict)
+  billingInvoices OrganizationBillingInvoice[]
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
 
   @@index([organizationId])
   @@index([planId])
   @@map("organization_subscriptions")
+}
+
+model OrganizationBillingInvoice {
+  id             Int                          @id @default(autoincrement())
+  organizationId Int                          @map("organization_id")
+  subscriptionId Int?                         @map("subscription_id")
+  planId         Int                          @map("plan_id")
+  invoiceNumber  String                       @unique @map("invoice_number")
+  billingCycle   String                       @map("billing_cycle")
+  periodStart    DateTime                     @map("period_start")
+  periodEnd      DateTime                     @map("period_end")
+  invoiceDate    DateTime                     @default(now()) @map("invoice_date")
+  dueDate        DateTime                     @map("due_date")
+  amount         Decimal                      @default(0) @db.Decimal(12, 2)
+  paidAmount     Decimal                      @default(0) @map("paid_amount") @db.Decimal(12, 2)
+  balanceAmount  Decimal                      @default(0) @map("balance_amount") @db.Decimal(12, 2)
+  status         String                       @default("GENERATED")
+  notes          String?                      @db.Text
+  organization   Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription   OrganizationSubscription?    @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  plan           Plan                         @relation(fields: [planId], references: [id], onDelete: Restrict)
+  payments       OrganizationBillingPayment[]
+  createdAt      DateTime                     @default(now()) @map("created_at")
+  updatedAt      DateTime                     @updatedAt @map("updated_at")
+
+  @@index([organizationId])
+  @@index([subscriptionId])
+  @@index([planId])
+  @@index([billingCycle])
+  @@index([status])
+  @@index([invoiceDate])
+  @@index([dueDate])
+  @@map("organization_billing_invoices")
+}
+
+model OrganizationBillingPayment {
+  id              Int                        @id @default(autoincrement())
+  organizationId  Int                        @map("organization_id")
+  invoiceId       Int                        @map("invoice_id")
+  paymentNumber   String                     @unique @map("payment_number")
+  amount          Decimal                    @default(0) @db.Decimal(12, 2)
+  paymentMethod   String                     @default("BANK_TRANSFER") @map("payment_method")
+  paymentDate     DateTime                   @default(now()) @map("payment_date")
+  referenceNumber String?                    @map("reference_number")
+  notes           String?                    @db.Text
+  organization    Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoice         OrganizationBillingInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  createdAt       DateTime                   @default(now()) @map("created_at")
+  updatedAt       DateTime                   @updatedAt @map("updated_at")
+
+  @@index([organizationId])
+  @@index([invoiceId])
+  @@index([paymentDate])
+  @@map("organization_billing_payments")
 }
 
 model OrganizationFeature {
@@ -165,8 +232,12 @@ model Customer {
   payments         Payment[]
   contracts        Contract[]
   invoices         Invoice[]
+  quotations       Quotation[]
   callLogs         CallLog[]
   followUps        FollowUp[]
+  whatsappLogs     WhatsAppMessageLog[]
+  portalUsers      CustomerPortalUser[]
+  serviceRequests  ServiceRequest[]
   createdBy        User?            @relation("CustomerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   updatedBy        User?            @relation("CustomerUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   createdAt        DateTime         @default(now())
@@ -197,31 +268,34 @@ model CustomerSystem {
 }
 
 model Job {
-  id              Int               @id @default(autoincrement())
-  organizationId  Int               @map("organization_id")
-  customerId      Int
-  assignedAgentId Int?
-  assignedStaffId Int?
-  scheduledDate   DateTime
-  scheduledTime   String
-  status          JobStatus         @default(SCHEDULED)
-  completionDate  DateTime?
-  remarks         String?           @db.Text
-  createdById     Int?
-  updatedById     Int?
-  completedById   Int?
-  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  customer        Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  assignedAgent   User?             @relation("AgentJobs", fields: [assignedAgentId], references: [id], onDelete: SetNull)
-  assignedStaff   User?             @relation("StaffJobs", fields: [assignedStaffId], references: [id], onDelete: SetNull)
-  createdBy       User?             @relation("JobCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  updatedBy       User?             @relation("JobUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
-  completedBy     User?             @relation("JobCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
-  followUps       FollowUp[]
-  payments        Payment[]
-  contractLinks   ContractJobLink[]
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  id                  Int               @id @default(autoincrement())
+  organizationId      Int               @map("organization_id")
+  customerId          Int
+  assignedAgentId     Int?
+  assignedStaffId     Int?
+  scheduledDate       DateTime
+  scheduledTime       String
+  status              JobStatus         @default(SCHEDULED)
+  completionDate      DateTime?
+  remarks             String?           @db.Text
+  createdById         Int?
+  updatedById         Int?
+  completedById       Int?
+  organization        Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer            Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  assignedAgent       User?             @relation("AgentJobs", fields: [assignedAgentId], references: [id], onDelete: SetNull)
+  assignedStaff       User?             @relation("StaffJobs", fields: [assignedStaffId], references: [id], onDelete: SetNull)
+  createdBy           User?             @relation("JobCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy           User?             @relation("JobUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  completedBy         User?             @relation("JobCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  followUps           FollowUp[]
+  payments            Payment[]
+  contractLinks       ContractJobLink[]
+  convertedQuotations Quotation[]       @relation("QuotationConvertedJob")
+  whatsappLogs        WhatsAppMessageLog[]
+  serviceRequests     ServiceRequest[]
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 
   @@index([organizationId])
   @@index([customerId])
@@ -235,27 +309,30 @@ model Job {
 }
 
 model Contract {
-  id              Int                   @id @default(autoincrement())
-  organizationId  Int                   @map("organization_id")
-  customerId      Int                   @map("customer_id")
-  contractNumber  String                @unique @map("contract_number")
-  title           String
-  description     String?               @db.Text
-  startDate       DateTime              @map("start_date")
-  endDate         DateTime              @map("end_date")
-  contractValue   Decimal               @default(0) @map("contract_value") @db.Decimal(12, 2)
-  status          ContractStatus        @default(DRAFT)
-  createdByUserId Int?                  @map("created_by_user_id")
-  organization    Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  customer        Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  createdBy       User?                 @relation("ContractCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  services        ContractService[]
-  billingRules    ContractBillingRule[]
-  jobLinks        ContractJobLink[]
-  invoices        Invoice[]
-  invoicePayments Payment[]             @relation("PaymentContract")
-  createdAt       DateTime              @default(now()) @map("created_at")
-  updatedAt       DateTime              @updatedAt @map("updated_at")
+  id                  Int                   @id @default(autoincrement())
+  organizationId      Int                   @map("organization_id")
+  customerId          Int                   @map("customer_id")
+  contractNumber      String                @unique @map("contract_number")
+  title               String
+  description         String?               @db.Text
+  startDate           DateTime              @map("start_date")
+  endDate             DateTime              @map("end_date")
+  contractValue       Decimal               @default(0) @map("contract_value") @db.Decimal(12, 2)
+  status              ContractStatus        @default(DRAFT)
+  createdByUserId     Int?                  @map("created_by_user_id")
+  organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer            Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  createdBy           User?                 @relation("ContractCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  services            ContractService[]
+  billingRules        ContractBillingRule[]
+  jobLinks            ContractJobLink[]
+  invoices            Invoice[]
+  invoicePayments     Payment[]             @relation("PaymentContract")
+  convertedQuotations Quotation[]           @relation("QuotationConvertedContract")
+  whatsappLogs        WhatsAppMessageLog[]
+  serviceRequests     ServiceRequest[]
+  createdAt           DateTime              @default(now()) @map("created_at")
+  updatedAt           DateTime              @updatedAt @map("updated_at")
 
   @@index([organizationId])
   @@index([customerId])
@@ -333,6 +410,67 @@ model ContractJobLink {
   @@map("contract_job_links")
 }
 
+model Quotation {
+  id                  Int                    @id @default(autoincrement())
+  organizationId      Int                    @map("organization_id")
+  customerId          Int                    @map("customer_id")
+  quotationNumber     String                 @unique @map("quotation_number")
+  title               String
+  description         String?                @db.Text
+  quotationDate       DateTime               @map("quotation_date")
+  validUntil          DateTime?              @map("valid_until")
+  status              QuotationStatus        @default(DRAFT)
+  subtotal            Decimal                @default(0) @db.Decimal(12, 2)
+  discountType        QuotationDiscountType? @map("discount_type")
+  discountValue       Decimal                @default(0) @map("discount_value") @db.Decimal(12, 2)
+  discountAmount      Decimal                @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  taxRate             Decimal                @default(0) @map("tax_rate") @db.Decimal(5, 2)
+  taxAmount           Decimal                @default(0) @map("tax_amount") @db.Decimal(12, 2)
+  totalAmount         Decimal                @default(0) @map("total_amount") @db.Decimal(12, 2)
+  notes               String?                @db.Text
+  terms               String?                @db.Text
+  convertedToType     QuotationConvertType?  @map("converted_to_type")
+  convertedJobId      Int?                   @unique @map("converted_job_id")
+  convertedContractId Int?                   @unique @map("converted_contract_id")
+  createdByUserId     Int?                   @map("created_by_user_id")
+  organization        Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  customer            Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  convertedJob        Job?                   @relation("QuotationConvertedJob", fields: [convertedJobId], references: [id], onDelete: SetNull)
+  convertedContract   Contract?              @relation("QuotationConvertedContract", fields: [convertedContractId], references: [id], onDelete: SetNull)
+  createdBy           User?                  @relation("QuotationCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  items               QuotationItem[]
+  whatsappLogs        WhatsAppMessageLog[]
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
+
+  @@index([organizationId])
+  @@index([customerId])
+  @@index([status])
+  @@index([quotationDate])
+  @@index([validUntil])
+  @@index([createdByUserId])
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @map("organization_id")
+  quotationId    Int          @map("quotation_id")
+  itemName       String       @map("item_name")
+  description    String?      @db.Text
+  quantity       Decimal      @default(1) @db.Decimal(12, 2)
+  unitPrice      Decimal      @default(0) @map("unit_price") @db.Decimal(12, 2)
+  lineTotal      Decimal      @default(0) @map("line_total") @db.Decimal(12, 2)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  quotation      Quotation    @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@index([organizationId])
+  @@index([quotationId])
+  @@map("quotation_items")
+}
+
 model Invoice {
   id             Int                  @id @default(autoincrement())
   organizationId Int                  @map("organization_id")
@@ -353,6 +491,7 @@ model Invoice {
   contract       Contract?            @relation(fields: [contractId], references: [id], onDelete: SetNull)
   billingRule    ContractBillingRule? @relation(fields: [billingRuleId], references: [id], onDelete: SetNull)
   payments       Payment[]
+  whatsappLogs   WhatsAppMessageLog[]
   createdAt      DateTime             @default(now()) @map("created_at")
   updatedAt      DateTime             @updatedAt @map("updated_at")
 
@@ -393,6 +532,7 @@ model Payment {
   receivedBy      User?         @relation("PaymentReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
   createdBy       User?         @relation("PaymentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   updatedBy       User?         @relation("PaymentUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  whatsappLogs    WhatsAppMessageLog[]
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -460,6 +600,141 @@ model FollowUp {
   @@index([status])
   @@index([createdById])
   @@index([updatedById])
+}
+
+model WhatsAppSetting {
+  id                Int          @id @default(autoincrement())
+  organizationId    Int          @map("organization_id")
+  providerType      String       @default("MOCK") @map("provider_type")
+  apiKey            String?      @map("api_key") @db.Text
+  accessToken       String?      @map("access_token") @db.Text
+  phoneNumberId     String?      @map("phone_number_id")
+  businessAccountId String?      @map("business_account_id")
+  senderNumber      String?      @map("sender_number")
+  isActive          Boolean      @default(false) @map("is_active")
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+
+  @@index([organizationId])
+  @@map("whatsapp_settings")
+}
+
+model WhatsAppTemplate {
+  id               Int          @id @default(autoincrement())
+  organizationId   Int          @map("organization_id")
+  templateCode     String       @map("template_code")
+  templateName     String       @map("template_name")
+  category         String?
+  messageBody      String       @map("message_body") @db.Text
+  isSystemTemplate Boolean      @default(false) @map("is_system_template")
+  isActive         Boolean      @default(true) @map("is_active")
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  @@unique([organizationId, templateCode])
+  @@index([organizationId])
+  @@index([templateCode])
+  @@map("whatsapp_templates")
+}
+
+model WhatsAppMessageLog {
+  id                Int           @id @default(autoincrement())
+  organizationId    Int           @map("organization_id")
+  customerId        Int?          @map("customer_id")
+  jobId             Int?          @map("job_id")
+  contractId        Int?          @map("contract_id")
+  invoiceId         Int?          @map("invoice_id")
+  quotationId       Int?          @map("quotation_id")
+  paymentId         Int?          @map("payment_id")
+  phoneNumber       String        @map("phone_number")
+  templateCode      String        @map("template_code")
+  messageBody       String        @map("message_body") @db.Text
+  providerType      String        @map("provider_type")
+  providerMessageId String?       @map("provider_message_id")
+  status            String        @default("PENDING")
+  errorMessage      String?       @map("error_message") @db.Text
+  sentAt            DateTime?     @map("sent_at")
+  deliveredAt       DateTime?     @map("delivered_at")
+  organization      Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer          Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  job               Job?          @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  contract          Contract?     @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  invoice           Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  quotation         Quotation?    @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+  payment           Payment?      @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  createdAt         DateTime      @default(now()) @map("created_at")
+
+  @@index([organizationId])
+  @@index([customerId])
+  @@index([jobId])
+  @@index([contractId])
+  @@index([invoiceId])
+  @@index([quotationId])
+  @@index([paymentId])
+  @@index([templateCode])
+  @@index([status])
+  @@index([createdAt])
+  @@map("whatsapp_message_logs")
+}
+
+model CustomerPortalUser {
+  id              Int              @id @default(autoincrement())
+  organizationId  Int              @map("organization_id")
+  customerId      Int              @map("customer_id")
+  name            String
+  email           String?
+  phone           String?
+  passwordHash    String           @map("password_hash")
+  status          String           @default("ACTIVE")
+  lastLoginAt     DateTime?        @map("last_login_at")
+  inviteToken     String?          @unique @map("invite_token")
+  inviteExpiresAt DateTime?        @map("invite_expires_at")
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer        Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  serviceRequests ServiceRequest[]
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  @@unique([organizationId, email])
+  @@unique([organizationId, phone])
+  @@index([organizationId])
+  @@index([customerId])
+  @@index([status])
+  @@map("customer_portal_users")
+}
+
+model ServiceRequest {
+  id                Int                 @id @default(autoincrement())
+  organizationId    Int                 @map("organization_id")
+  customerId        Int                 @map("customer_id")
+  portalUserId      Int?                @map("portal_user_id")
+  requestNumber     String              @unique @map("request_number")
+  requestType       ServiceRequestType  @map("request_type")
+  title             String
+  description       String              @db.Text
+  priority          ServicePriority     @default(MEDIUM)
+  status            ServiceRequestStatus @default(OPEN)
+  relatedContractId Int?                @map("related_contract_id")
+  relatedJobId      Int?                @map("related_job_id")
+  organization      Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer          Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  portalUser        CustomerPortalUser? @relation(fields: [portalUserId], references: [id], onDelete: SetNull)
+  relatedContract   Contract?           @relation(fields: [relatedContractId], references: [id], onDelete: SetNull)
+  relatedJob        Job?                @relation(fields: [relatedJobId], references: [id], onDelete: SetNull)
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+
+  @@index([organizationId])
+  @@index([customerId])
+  @@index([portalUserId])
+  @@index([requestType])
+  @@index([priority])
+  @@index([status])
+  @@index([relatedContractId])
+  @@index([relatedJobId])
+  @@map("service_requests")
 }
 
 enum UserRole {
@@ -543,6 +818,26 @@ enum BillingType {
   CUSTOM
 }
 
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CONVERTED
+  CANCELLED
+}
+
+enum QuotationDiscountType {
+  FIXED
+  PERCENTAGE
+}
+
+enum QuotationConvertType {
+  JOB
+  CONTRACT
+}
+
 enum InvoiceStatus {
   DRAFT
   GENERATED
@@ -550,5 +845,28 @@ enum InvoiceStatus {
   PARTIALLY_PAID
   PAID
   OVERDUE
+  CANCELLED
+}
+
+enum ServiceRequestType {
+  NEW_SERVICE
+  COMPLAINT
+  REVISIT
+  EMERGENCY
+  GENERAL
+}
+
+enum ServicePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ServiceRequestStatus {
+  OPEN
+  IN_REVIEW
+  CONVERTED_TO_JOB
+  CLOSED
   CANCELLED
 }

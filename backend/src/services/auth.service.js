@@ -52,7 +52,7 @@ export async function registerUser(data) {
             email,
             phone: data.organizationPhone,
             address: data.organizationAddress,
-            plan: data.plan || "FREE"
+            plan: data.plan || "STARTER"
           }
         });
 

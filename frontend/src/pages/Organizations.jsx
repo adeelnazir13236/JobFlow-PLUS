@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { createOrganization, getOrganizations, updateOrganization } from "../api/organizationService";
+import { getPlans } from "../api/planService";
 import Alert from "../components/Alert";
 import Button from "../components/Button";
 import Input from "../components/Input";
@@ -15,7 +16,7 @@ const emptyForm = {
   phone: "",
   address: "",
   status: "ACTIVE",
-  plan: "PLUS"
+  plan: ""
 };
 
 function formatDate(value) {
@@ -27,6 +28,7 @@ export default function Organizations() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [planFilter, setPlanFilter] = useState("");
+  const [plans, setPlans] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [editingOrganization, setEditingOrganization] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -54,11 +56,25 @@ export default function Organizations() {
     loadOrganizations();
   }, [search, statusFilter, planFilter]);
 
+  useEffect(() => {
+    async function loadPlans() {
+      try {
+        const rows = await getPlans();
+        setPlans(rows.filter((plan) => plan.status === "ACTIVE"));
+      } catch (err) {
+        setError(err.response?.data?.message || "Unable to load plans");
+      }
+    }
+
+    loadPlans();
+  }, []);
+
   const filteredOrganizations = useMemo(() => organizations, [organizations]);
+  const defaultPlanCode = plans[0]?.code || "";
 
   function openCreateModal() {
     setEditingOrganization(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, plan: defaultPlanCode });
     setModalOpen(true);
   }
 
@@ -70,7 +86,7 @@ export default function Organizations() {
       phone: organization.phone || "",
       address: organization.address || "",
       status: organization.status || "ACTIVE",
-      plan: organization.plan || "PLUS"
+      plan: organization.plan || defaultPlanCode
     });
     setModalOpen(true);
   }
@@ -157,10 +173,7 @@ export default function Organizations() {
             onChange={(event) => setPlanFilter(event.target.value)}
           >
             <option value="">All plans</option>
-            <option value="FREE">FREE</option>
-            <option value="PLUS">PLUS</option>
-            <option value="PRO">PRO</option>
-            <option value="ENTERPRISE">ENTERPRISE</option>
+            {plans.map((plan) => <option key={plan.id} value={plan.code}>{plan.name} ({plan.code})</option>)}
           </select>
         </label>
       </div>
@@ -182,10 +195,11 @@ export default function Organizations() {
               key: "actions",
               label: "Actions",
               render: (row) => (
-                <div className="flex gap-3">
-                  <button className="font-medium text-slate-950" type="button" onClick={() => openEditModal(row)}>Edit</button>
-                  <button
-                    className="font-medium text-slate-950"
+                <div className="flex flex-wrap gap-2">
+                  <Button className="min-h-9 px-3" type="button" onClick={() => openEditModal(row)}>Edit</Button>
+                  <Button
+                    className="min-h-9 px-3"
+                    variant={row.status === "ACTIVE" ? "secondary" : "success"}
                     type="button"
                     onClick={async () => {
                       await updateOrganization(row.id, { ...row, status: row.status === "ACTIVE" ? "INACTIVE" : "ACTIVE" });
@@ -193,7 +207,7 @@ export default function Organizations() {
                     }}
                   >
                     {row.status === "ACTIVE" ? "Deactivate" : "Activate"}
-                  </button>
+                  </Button>
                 </div>
               )
             }
@@ -220,11 +234,10 @@ export default function Organizations() {
                 className="interactive-field h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-950 outline-none focus:border-slate-950 focus:ring-2 focus:ring-slate-200"
                 value={form.plan}
                 onChange={(event) => updateForm("plan", event.target.value)}
+                required
               >
-                <option value="FREE">FREE</option>
-                <option value="PLUS">PLUS</option>
-                <option value="PRO">PRO</option>
-                <option value="ENTERPRISE">ENTERPRISE</option>
+                <option value="">Select plan</option>
+                {plans.map((plan) => <option key={plan.id} value={plan.code}>{plan.name} ({plan.code})</option>)}
               </select>
             </label>
             <label className="block">

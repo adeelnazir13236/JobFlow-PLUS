@@ -1,6 +1,6 @@
 import prisma from "../config/prisma.js";
 import ApiError from "../utils/ApiError.js";
-import { tenantData, tenantWhere } from "../utils/tenant.js";
+import { isSystemAdmin, tenantData, tenantWhere } from "../utils/tenant.js";
 import { validateEmail } from "../utils/validation.js";
 
 const customerInclude = {
@@ -91,7 +91,9 @@ export async function getCustomerById(id, currentUser) {
 export async function createCustomer(data, currentUser) {
   const { systems, ...customerData } = data;
   const normalizedCustomerData = normalizeCustomerData(customerData);
-  const tenant = tenantData(currentUser);
+  const tenant = isSystemAdmin(currentUser)
+    ? { organizationId: Number(customerData.organizationId) }
+    : tenantData(currentUser);
 
   if (!normalizedCustomerData.name || !normalizedCustomerData.phone) {
     throw new ApiError(400, "Customer name and phone are required");
@@ -106,9 +108,22 @@ export async function createCustomer(data, currentUser) {
   }
 
   return prisma.$transaction(async (tx) => {
+    if (isSystemAdmin(currentUser)) {
+      if (!Number.isInteger(tenant.organizationId) || tenant.organizationId <= 0) {
+        throw new ApiError(400, "Organization is required");
+      }
+
+      const organization = await tx.organization.findUnique({ where: { id: tenant.organizationId } });
+
+      if (!organization || organization.status !== "ACTIVE") {
+        throw new ApiError(400, "A valid active organization is required");
+      }
+    }
+
     const customer = await tx.customer.create({
       data: {
         ...normalizedCustomerData,
+        organizationId: undefined,
         ...tenant,
         createdById: currentUser?.id,
         updatedById: currentUser?.id,

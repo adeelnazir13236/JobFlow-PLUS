@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createOrganization } from "../api/organizationService";
+import { getPlans } from "../api/planService";
 import Alert from "../components/Alert";
 import Button from "../components/Button";
 import Input from "../components/Input";
@@ -12,14 +13,30 @@ const initialForm = {
   phone: "",
   address: "",
   status: "ACTIVE",
-  plan: "PLUS"
+  plan: ""
 };
 
 export default function AddOrganization() {
   const [form, setForm] = useState(initialForm);
+  const [plans, setPlans] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+
+  useEffect(() => {
+    async function loadPlans() {
+      try {
+        const rows = await getPlans();
+        const activePlans = rows.filter((plan) => plan.status === "ACTIVE");
+        setPlans(activePlans);
+        setForm((current) => ({ ...current, plan: current.plan || activePlans[0]?.code || "" }));
+      } catch (err) {
+        setError(err.response?.data?.message || "Unable to load plans");
+      }
+    }
+
+    loadPlans();
+  }, []);
 
   function updateForm(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -58,11 +75,10 @@ export default function AddOrganization() {
               className="interactive-field h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-950 outline-none focus:border-slate-950 focus:ring-2 focus:ring-slate-200"
               value={form.plan}
               onChange={(event) => updateForm("plan", event.target.value)}
+              required
             >
-              <option value="FREE">FREE</option>
-              <option value="PLUS">PLUS</option>
-              <option value="PRO">PRO</option>
-              <option value="ENTERPRISE">ENTERPRISE</option>
+              <option value="">Select plan</option>
+              {plans.map((plan) => <option key={plan.id} value={plan.code}>{plan.name} ({plan.code})</option>)}
             </select>
           </label>
           <label className="block">

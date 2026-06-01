@@ -56,10 +56,10 @@ router.get("/:id", asyncHandler(async (req, res) => {
 }));
 
 router.post("/", asyncHandler(async (req, res) => {
-  const { name, code, description, monthlyPrice = 0, yearlyPrice = 0, status = "ACTIVE" } = req.body;
+  const { name, code, description, monthlyPrice = 0, halfYearlyPrice = 0, yearlyPrice = 0, status = "ACTIVE" } = req.body;
   if (!name || !code) throw new ApiError(400, "Plan name and code are required");
   validateEnum(status, statuses, "Plan status");
-  const plan = await prisma.plan.create({ data: { name, code, description, monthlyPrice, yearlyPrice, status } });
+  const plan = await prisma.plan.create({ data: { name, code, description, monthlyPrice, halfYearlyPrice, yearlyPrice, status } });
   res.status(201).json({ plan });
 }));
 
@@ -72,6 +72,7 @@ router.put("/:id", asyncHandler(async (req, res) => {
       code: req.body.code,
       description: req.body.description,
       monthlyPrice: req.body.monthlyPrice,
+      halfYearlyPrice: req.body.halfYearlyPrice,
       yearlyPrice: req.body.yearlyPrice,
       status: req.body.status
     }

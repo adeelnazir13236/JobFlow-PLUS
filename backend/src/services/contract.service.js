@@ -3,6 +3,7 @@ import ApiError from "../utils/ApiError.js";
 import { hasFeature } from "../utils/features.js";
 import { isSystemAdmin, tenantWhere } from "../utils/tenant.js";
 import { validateEnum } from "../utils/validation.js";
+import { safelySendNotification, sendInvoiceNotification } from "./whatsapp.service.js";
 
 const contractStatuses = ["DRAFT", "ACTIVE", "PAUSED", "COMPLETED", "EXPIRED", "CANCELLED"];
 const serviceStatuses = ["ACTIVE", "PAUSED", "COMPLETED", "CANCELLED"];
@@ -264,6 +265,15 @@ async function applyBillingTriggers(tx, contract, completedJobs) {
       where: { id: invoice.id },
       data: { invoiceNumber: invoiceNumberForId(invoice.id) }
     });
+
+    setTimeout(() => {
+      safelySendNotification(
+        sendInvoiceNotification,
+        invoice.id,
+        { organizationId: contract.organizationId, organization: { status: "ACTIVE" } },
+        { skipIfSent: true }
+      );
+    }, 0);
 
     await tx.contractBillingRule.update({
       where: { id: rule.id },
