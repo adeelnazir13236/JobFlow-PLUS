@@ -17,6 +17,8 @@ const featureSeeds = [
   ["PAYMENTS", "Payments", "Payment tracking", "Finance"],
   ["WHATSAPP", "WhatsApp", "WhatsApp messaging", "Integrations"],
   ["CUSTOMER_PORTAL", "Customer Portal", "Customer self-service portal", "Portal"],
+  ["TECHNICIAN_WORKSPACE", "Technician Workspace", "Field technician workspace and job operations", "Operations"],
+  ["GPS_TRACKING", "GPS Tracking", "Technician job check-in and check-out geo verification", "Operations"],
   ["AI_ASSISTANT", "AI Assistant", "AI-powered assistance", "AI"]
 ];
 
@@ -28,7 +30,7 @@ const planSeeds = [
     monthlyPrice: 0,
     halfYearlyPrice: 0,
     yearlyPrice: 0,
-    features: ["DASHBOARD", "CUSTOMERS", "JOBS", "FOLLOW_UPS", "CALL_LOGS"]
+    features: ["DASHBOARD", "CUSTOMERS", "JOBS", "FOLLOW_UPS", "CALL_LOGS", "TECHNICIAN_WORKSPACE"]
   },
   {
     name: "Starter",
@@ -37,7 +39,7 @@ const planSeeds = [
     monthlyPrice: 0,
     halfYearlyPrice: 0,
     yearlyPrice: 0,
-    features: ["DASHBOARD", "CUSTOMERS", "JOBS", "FOLLOW_UPS", "CALL_LOGS"]
+    features: ["DASHBOARD", "CUSTOMERS", "JOBS", "FOLLOW_UPS", "CALL_LOGS", "TECHNICIAN_WORKSPACE"]
   },
   {
     name: "Professional",
@@ -46,7 +48,7 @@ const planSeeds = [
     monthlyPrice: 49,
     halfYearlyPrice: 294,
     yearlyPrice: 499,
-    features: ["DASHBOARD", "CUSTOMERS", "JOBS", "FOLLOW_UPS", "CALL_LOGS", "REPORTS", "CONTRACTS", "RECURRING_JOBS", "QUOTATIONS", "INVOICES", "PAYMENTS"]
+    features: ["DASHBOARD", "CUSTOMERS", "JOBS", "FOLLOW_UPS", "CALL_LOGS", "REPORTS", "CONTRACTS", "RECURRING_JOBS", "QUOTATIONS", "INVOICES", "PAYMENTS", "TECHNICIAN_WORKSPACE", "GPS_TRACKING"]
   },
   {
     name: "Enterprise",
@@ -110,6 +112,27 @@ async function upsertUser(organizationId, data) {
     where: { email: data.email },
     update: { ...data, password, organizationId },
     create: { ...data, password, organizationId }
+  });
+}
+
+async function upsertTechnicianProfile(organization, user, index = 1) {
+  return prisma.technicianProfile.upsert({
+    where: { userId: user.id },
+    update: {
+      organizationId: organization.id,
+      employeeCode: `${slug(organization.name).slice(0, 3).toUpperCase()}-TECH-${String(index).padStart(3, "0")}`,
+      phone: `0302-${String(organization.id).padStart(2, "0")}${String(index).padStart(5, "0")}`,
+      designation: "Field Technician",
+      active: true
+    },
+    create: {
+      organizationId: organization.id,
+      userId: user.id,
+      employeeCode: `${slug(organization.name).slice(0, 3).toUpperCase()}-TECH-${String(index).padStart(3, "0")}`,
+      phone: `0302-${String(organization.id).padStart(2, "0")}${String(index).padStart(5, "0")}`,
+      designation: "Field Technician",
+      active: true
+    }
   });
 }
 
@@ -179,6 +202,8 @@ async function upsertCustomer(organization, admin, customerSeed, index) {
     address: `${customerSeed.area}, ${customerSeed.city}`,
     area: customerSeed.area,
     city: customerSeed.city,
+    latitude: customerSeed.latitude,
+    longitude: customerSeed.longitude,
     jobPaymentAmount: customerSeed.jobPaymentAmount,
     notes: `Seeded customer ${index + 1} for ${organization.name}`,
     status: customerSeed.status || "ACTIVE",
@@ -649,17 +674,17 @@ const organizationSeeds = [
       plan: "STARTER"
     },
     subscriptionPlan: "STARTER",
-    overrides: ["WHATSAPP", "CUSTOMER_PORTAL"],
+    overrides: ["WHATSAPP", "CUSTOMER_PORTAL", "GPS_TRACKING"],
     users: [
       { name: "Cleaning Admin", email: "admin@sample-cleaning.test", role: "ADMIN", status: "ACTIVE" },
       { name: "Cleaning Agent", email: "agent@sample-cleaning.test", role: "AGENT", status: "ACTIVE" },
       { name: "Cleaning Staff", email: "staff@sample-cleaning.test", role: "STAFF", status: "ACTIVE" }
     ],
     customers: [
-      { name: "Green Villa", phone: "0301-1100001", city: "Lahore", area: "DHA", systemType: "Deep Cleaning", installationType: "Residential", jobPaymentAmount: 12000 },
-      { name: "Bright Office", phone: "0301-1100002", city: "Lahore", area: "Gulberg", systemType: "Office Cleaning", installationType: "Commercial", jobPaymentAmount: 18000 },
-      { name: "City Restaurant", phone: "0301-1100003", city: "Lahore", area: "Model Town", systemType: "Kitchen Cleaning", installationType: "Commercial", jobPaymentAmount: 24000 },
-      { name: "Park Apartments", phone: "0301-1100004", city: "Lahore", area: "Johar Town", systemType: "Move-out Cleaning", installationType: "Residential", jobPaymentAmount: 15000, status: "INACTIVE" }
+      { name: "Green Villa", phone: "0301-1100001", city: "Lahore", area: "DHA", latitude: 31.4628000, longitude: 74.4090000, systemType: "Deep Cleaning", installationType: "Residential", jobPaymentAmount: 12000 },
+      { name: "Bright Office", phone: "0301-1100002", city: "Lahore", area: "Gulberg", latitude: 31.5204000, longitude: 74.3587000, systemType: "Office Cleaning", installationType: "Commercial", jobPaymentAmount: 18000 },
+      { name: "City Restaurant", phone: "0301-1100003", city: "Lahore", area: "Model Town", latitude: 31.4844000, longitude: 74.3239000, systemType: "Kitchen Cleaning", installationType: "Commercial", jobPaymentAmount: 24000 },
+      { name: "Park Apartments", phone: "0301-1100004", city: "Lahore", area: "Johar Town", latitude: 31.4697000, longitude: 74.2728000, systemType: "Move-out Cleaning", installationType: "Residential", jobPaymentAmount: 15000, status: "INACTIVE" }
     ]
   },
   {
@@ -678,10 +703,10 @@ const organizationSeeds = [
       { name: "Maintenance Staff", email: "staff@sample-maintenance.test", role: "STAFF", status: "ACTIVE" }
     ],
     customers: [
-      { name: "Metro Clinic", phone: "0301-2200001", city: "Karachi", area: "Clifton", systemType: "AC Maintenance", installationType: "Commercial", jobPaymentAmount: 9000 },
-      { name: "Harbor Warehouse", phone: "0301-2200002", city: "Karachi", area: "Korangi", systemType: "Electrical Maintenance", installationType: "Industrial", jobPaymentAmount: 22000 },
-      { name: "Seaview Apartments", phone: "0301-2200003", city: "Karachi", area: "DHA", systemType: "Plumbing Maintenance", installationType: "Residential", jobPaymentAmount: 14000 },
-      { name: "North Mall", phone: "0301-2200004", city: "Karachi", area: "North Nazimabad", systemType: "General Maintenance", installationType: "Commercial", jobPaymentAmount: 26000 }
+      { name: "Metro Clinic", phone: "0301-2200001", city: "Karachi", area: "Clifton", latitude: 24.8138000, longitude: 67.0305000, systemType: "AC Maintenance", installationType: "Commercial", jobPaymentAmount: 9000 },
+      { name: "Harbor Warehouse", phone: "0301-2200002", city: "Karachi", area: "Korangi", latitude: 24.8392000, longitude: 67.1299000, systemType: "Electrical Maintenance", installationType: "Industrial", jobPaymentAmount: 22000 },
+      { name: "Seaview Apartments", phone: "0301-2200003", city: "Karachi", area: "DHA", latitude: 24.7936000, longitude: 67.0643000, systemType: "Plumbing Maintenance", installationType: "Residential", jobPaymentAmount: 14000 },
+      { name: "North Mall", phone: "0301-2200004", city: "Karachi", area: "North Nazimabad", latitude: 24.9372000, longitude: 67.0479000, systemType: "General Maintenance", installationType: "Commercial", jobPaymentAmount: 26000 }
     ]
   },
   {
@@ -700,8 +725,8 @@ const organizationSeeds = [
       { name: "Solar Staff", email: "staff@trial-solar.test", role: "STAFF", status: "ACTIVE" }
     ],
     customers: [
-      { name: "Margalla House", phone: "0301-3300001", city: "Islamabad", area: "F-8", systemType: "Solar Inspection", systemSize: "8kW", numberOfPanels: 16, installationType: "Residential", jobPaymentAmount: 11000 },
-      { name: "Blue Area Office", phone: "0301-3300002", city: "Islamabad", area: "Blue Area", systemType: "Solar Cleaning", systemSize: "20kW", numberOfPanels: 40, installationType: "Commercial", jobPaymentAmount: 30000 }
+      { name: "Margalla House", phone: "0301-3300001", city: "Islamabad", area: "F-8", latitude: 33.7136000, longitude: 73.0387000, systemType: "Solar Inspection", systemSize: "8kW", numberOfPanels: 16, installationType: "Residential", jobPaymentAmount: 11000 },
+      { name: "Blue Area Office", phone: "0301-3300002", city: "Islamabad", area: "Blue Area", latitude: 33.7156000, longitude: 73.0640000, systemType: "Solar Cleaning", systemSize: "20kW", numberOfPanels: 40, installationType: "Commercial", jobPaymentAmount: 30000 }
     ]
   }
 ];
@@ -720,7 +745,8 @@ const summary = {
   whatsappTemplates: 0,
   whatsappLogs: 0,
   portalUsers: 0,
-  serviceRequests: 0
+  serviceRequests: 0,
+  gpsLogs: 0
 };
 
 const portalLogins = [];
@@ -747,6 +773,7 @@ for (const seed of organizationSeeds) {
   const admin = users.find((user) => user.role === "ADMIN");
   const agent = users.find((user) => user.role === "AGENT");
   const staff = users.find((user) => user.role === "STAFF");
+  await upsertTechnicianProfile(organization, staff, 1);
 
   await prisma.whatsAppMessageLog.deleteMany({ where: { organizationId: organization.id } });
   await prisma.serviceRequest.deleteMany({ where: { organizationId: organization.id } });
@@ -757,6 +784,12 @@ for (const seed of organizationSeeds) {
   await prisma.payment.deleteMany({ where: { organizationId: organization.id } });
   await prisma.followUp.deleteMany({ where: { organizationId: organization.id } });
   await prisma.callLog.deleteMany({ where: { organizationId: organization.id } });
+  await prisma.jobSignature.deleteMany({ where: { organizationId: organization.id } });
+  await prisma.jobAttachment.deleteMany({ where: { organizationId: organization.id } });
+  await prisma.jobNote.deleteMany({ where: { organizationId: organization.id } });
+  await prisma.jobLocationLog.deleteMany({ where: { organizationId: organization.id } });
+  await prisma.jobActivityLog.deleteMany({ where: { organizationId: organization.id } });
+  await prisma.jobCompletionChecklist.deleteMany({ where: { organizationId: organization.id } });
   await prisma.job.deleteMany({ where: { organizationId: organization.id } });
   await prisma.customerSystem.deleteMany({ where: { organizationId: organization.id } });
   await prisma.customer.deleteMany({ where: { organizationId: organization.id } });
@@ -790,6 +823,93 @@ for (const seed of organizationSeeds) {
     for (const jobSeed of jobs) {
       const job = await upsertJob(organization, customer, admin, agent, staff, jobSeed);
       summary.jobs += 1;
+
+      await prisma.jobCompletionChecklist.createMany({
+        data: ["Confirm customer access", "Complete assigned service", "Collect customer feedback"].map((itemName, checklistIndex) => ({
+          organizationId: organization.id,
+          jobId: job.id,
+          itemName,
+          completed: job.status === "COMPLETED" || checklistIndex === 0,
+          completedAt: job.status === "COMPLETED" || checklistIndex === 0 ? new Date() : null
+        }))
+      });
+
+      await prisma.jobNote.create({
+        data: {
+          organizationId: organization.id,
+          jobId: job.id,
+          technicianId: staff.id,
+          note: job.status === "COMPLETED" ? "Seed note: service completed successfully." : "Seed note: technician should confirm access before arrival."
+        }
+      });
+
+      await prisma.jobActivityLog.createMany({
+        data: [
+          {
+            organizationId: organization.id,
+            jobId: job.id,
+            userId: staff.id,
+            activityType: "VIEWED",
+            notes: "Seed activity: job reviewed by technician"
+          },
+          {
+            organizationId: organization.id,
+            jobId: job.id,
+            userId: staff.id,
+            activityType: job.status === "COMPLETED" ? "COMPLETED" : "NOTE_ADDED",
+            notes: job.status === "COMPLETED" ? "Seed activity: job completed" : "Seed activity: note added"
+          }
+        ]
+      });
+
+      if (job.status === "COMPLETED" && customer.latitude && customer.longitude) {
+        const checkedInAt = addDays(job.scheduledDate, 0, 9);
+        const checkedOutAt = addDays(job.scheduledDate, 0, 16);
+        await prisma.job.update({
+          where: { id: job.id },
+          data: {
+            checkedInAt,
+            checkedOutAt,
+            checkInLatitude: customer.latitude,
+            checkInLongitude: customer.longitude,
+            checkOutLatitude: customer.latitude,
+            checkOutLongitude: customer.longitude,
+            locationVerified: true,
+            locationVerificationStatus: "VERIFIED"
+          }
+        });
+        await prisma.jobLocationLog.createMany({
+          data: [
+            {
+              organizationId: organization.id,
+              jobId: job.id,
+              technicianId: staff.id,
+              eventType: "CHECK_IN",
+              latitude: customer.latitude,
+              longitude: customer.longitude,
+              accuracy: 18,
+              distanceFromJobLocation: 0,
+              isVerified: true,
+              capturedAt: checkedInAt,
+              notes: "Seed GPS check-in near customer location"
+            },
+            {
+              organizationId: organization.id,
+              jobId: job.id,
+              technicianId: staff.id,
+              eventType: "CHECK_OUT",
+              latitude: customer.latitude,
+              longitude: customer.longitude,
+              accuracy: 20,
+              distanceFromJobLocation: 0,
+              isVerified: true,
+              capturedAt: checkedOutAt,
+              notes: "Seed GPS check-out near customer location"
+            }
+          ]
+        });
+        summary.gpsLogs += 2;
+      }
 
       const followUp = await upsertFollowUp(organization, customer, job, admin, {
         followUpDate: job.status === "COMPLETED" ? addDays(job.completionDate || job.scheduledDate, -1, 10) : addDays(job.scheduledDate, 2, 10),

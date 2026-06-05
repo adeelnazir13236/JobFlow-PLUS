@@ -34,6 +34,7 @@ const groups = [
       { to: "/quotations", label: "Quotations", icon: PaymentIcon, feature: "QUOTATIONS" },
       { to: "/contracts", label: "Contracts", icon: JobsIcon, feature: "CONTRACTS" },
       { to: "/contracts/add", label: "Add Contract", icon: AddIcon, feature: "CONTRACTS" },
+      { to: "/technician", label: "Technician Workspace", icon: JobsIcon, feature: "TECHNICIAN_WORKSPACE" },
       { to: "/call-logs", label: "Call Logs", icon: PhoneIcon, feature: "CALL_LOGS" },
       { to: "/followups", label: "Follow-ups", icon: FollowUpIcon, feature: "FOLLOW_UPS" },
       { to: "/service-requests", label: "Service Requests", icon: FollowUpIcon, feature: "CUSTOMER_PORTAL" }

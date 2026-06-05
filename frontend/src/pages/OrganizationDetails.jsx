@@ -12,6 +12,39 @@ function formatDate(value) {
   return value ? new Date(value).toLocaleString() : "N/A";
 }
 
+function formatShortDate(value) {
+  return value ? new Date(value).toLocaleDateString() : "N/A";
+}
+
+function formatMoney(value) {
+  const amount = Number(value || 0);
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2
+  }).format(amount);
+}
+
+function billingCycleLabel(value) {
+  return value ? value.replaceAll("_", " ") : "N/A";
+}
+
+function priceForSubscription(subscription) {
+  if (!subscription?.plan) {
+    return 0;
+  }
+
+  if (subscription.billingCycle === "YEARLY") {
+    return subscription.plan.yearlyPrice;
+  }
+
+  if (subscription.billingCycle === "HALF_YEARLY") {
+    return subscription.plan.halfYearlyPrice;
+  }
+
+  return subscription.plan.monthlyPrice;
+}
+
 export default function OrganizationDetails() {
   const { id } = useParams();
   const [organization, setOrganization] = useState(null);
@@ -80,8 +113,12 @@ export default function OrganizationDetails() {
     ["Jobs", organization._count?.jobs || 0],
     ["Follow-ups", organization._count?.followUps || 0],
     ["Call Logs", organization._count?.callLogs || 0],
-    ["Payments", organization._count?.payments || 0]
+    ["Payments", organization._count?.payments || 0],
+    ["Org Invoices", organization._count?.billingInvoices || 0]
   ];
+
+  const currentSubscription = organization.subscriptions?.[0];
+  const subscriptionPrice = priceForSubscription(currentSubscription);
 
   async function saveSubscription(event) {
     event.preventDefault();
@@ -167,6 +204,54 @@ export default function OrganizationDetails() {
       <div className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-base font-semibold text-slate-950">Subscription</h2>
+          <div className="mb-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase text-slate-500">Current Subscription</p>
+                <h3 className="mt-1 text-lg font-semibold text-slate-950">
+                  {currentSubscription?.plan?.name || organization.plan || "No active plan"}
+                </h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  {currentSubscription?.plan?.code || "N/A"} plan, {billingCycleLabel(currentSubscription?.billingCycle).toLowerCase()} billing
+                </p>
+              </div>
+              <StatusBadge status={currentSubscription?.status || "INACTIVE"} />
+            </div>
+            <div className="grid gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <div className="text-slate-500">Billing Amount</div>
+                <div className="font-semibold text-slate-950">{formatMoney(subscriptionPrice)}</div>
+              </div>
+              <div>
+                <div className="text-slate-500">Billing Cycle</div>
+                <div className="font-semibold text-slate-950">{billingCycleLabel(currentSubscription?.billingCycle)}</div>
+              </div>
+              <div>
+                <div className="text-slate-500">Start Date</div>
+                <div className="font-semibold text-slate-950">{formatShortDate(currentSubscription?.startDate)}</div>
+              </div>
+              <div>
+                <div className="text-slate-500">End Date</div>
+                <div className="font-semibold text-slate-950">{formatShortDate(currentSubscription?.endDate)}</div>
+              </div>
+              <div>
+                <div className="text-slate-500">Monthly Price</div>
+                <div className="font-semibold text-slate-950">{formatMoney(currentSubscription?.plan?.monthlyPrice)}</div>
+              </div>
+              <div>
+                <div className="text-slate-500">Half Yearly Price</div>
+                <div className="font-semibold text-slate-950">{formatMoney(currentSubscription?.plan?.halfYearlyPrice)}</div>
+              </div>
+              <div>
+                <div className="text-slate-500">Yearly Price</div>
+                <div className="font-semibold text-slate-950">{formatMoney(currentSubscription?.plan?.yearlyPrice)}</div>
+              </div>
+              <div>
+                <div className="text-slate-500">Recent Billing Invoices</div>
+                <div className="font-semibold text-slate-950">{organization._count?.billingInvoices || 0}</div>
+              </div>
+            </div>
+          </div>
           <form className="space-y-4" onSubmit={saveSubscription}>
             <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Plan</span><select className="interactive-field h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" value={subscriptionForm.planId} onChange={(event) => setSubscriptionForm({ ...subscriptionForm, planId: event.target.value })} required><option value="">Select plan</option>{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} ({plan.code})</option>)}</select></label>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -190,6 +275,27 @@ export default function OrganizationDetails() {
               </label>
             ))}
           </div>
+        </section>
+      </div>
+      <div className="mt-6">
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-slate-950">Recent Organization Billing</h2>
+            <span className="text-sm text-slate-500">{organization._count?.billingInvoices || 0} invoices</span>
+          </div>
+          <Table
+            columns={[
+              { key: "invoiceNumber", label: "Invoice" },
+              { key: "plan", label: "Plan", render: (row) => row.plan?.name || "N/A" },
+              { key: "billingCycle", label: "Cycle", render: (row) => billingCycleLabel(row.billingCycle) },
+              { key: "amount", label: "Amount", render: (row) => formatMoney(row.amount) },
+              { key: "balanceAmount", label: "Balance", render: (row) => formatMoney(row.balanceAmount) },
+              { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
+              { key: "dueDate", label: "Due", render: (row) => formatShortDate(row.dueDate) }
+            ]}
+            rows={organization.billingInvoices || []}
+            emptyMessage="No organization billing invoices found"
+          />
         </section>
       </div>
       <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_1fr]">

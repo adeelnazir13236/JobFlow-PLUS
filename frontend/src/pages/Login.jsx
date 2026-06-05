@@ -17,6 +17,10 @@ export default function Login() {
       const { data } = await api.post("/auth/login", form);
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
+      if (data.user?.role === "STAFF" && data.user?.features?.includes("TECHNICIAN_WORKSPACE")) {
+        navigate("/technician");
+        return;
+      }
       navigate("/");
     } catch (error) {
       setMessage(error.response?.data?.message || "Login failed");

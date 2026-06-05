@@ -20,6 +20,14 @@ function formatDate(value) {
   return value ? new Date(value).toLocaleDateString() : "N/A";
 }
 
+function mapLink(latitude, longitude) {
+  if (latitude === null || latitude === undefined || longitude === null || longitude === undefined) {
+    return "";
+  }
+
+  return `https://www.google.com/maps?q=${latitude},${longitude}`;
+}
+
 export default function CustomerDetails() {
   const { id } = useParams();
   const [customer, setCustomer] = useState(null);
@@ -79,6 +87,8 @@ export default function CustomerDetails() {
     return <Alert>Customer not found</Alert>;
   }
 
+  const customerMapLink = mapLink(customer.latitude, customer.longitude);
+
   return (
     <>
       <PageHeader
@@ -101,6 +111,20 @@ export default function CustomerDetails() {
             <DetailItem label="Email">{customer.email}</DetailItem>
             <DetailItem label="Area">{customer.area}</DetailItem>
             <DetailItem label="City">{customer.city}</DetailItem>
+            <DetailItem label="Latitude">{customer.latitude || "N/A"}</DetailItem>
+            <DetailItem label="Longitude">{customer.longitude || "N/A"}</DetailItem>
+            <DetailItem label="Map">
+              {customerMapLink ? (
+                <a
+                  className="inline-flex min-h-9 items-center justify-center rounded-md bg-sky-600 px-3 text-sm font-medium text-white hover:bg-sky-700"
+                  href={customerMapLink}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open in Google Maps
+                </a>
+              ) : "Location not set"}
+            </DetailItem>
             <DetailItem label="Payment Amount Per Job">{formatAmount(customer.jobPaymentAmount)}</DetailItem>
             <DetailItem label="Created By">{customer.createdBy?.name}</DetailItem>
             <DetailItem label="Updated By">{customer.updatedBy?.name}</DetailItem>

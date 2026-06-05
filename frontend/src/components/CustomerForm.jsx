@@ -19,6 +19,8 @@ function toFormState(customer) {
     address: customer?.address || "",
     area: customer?.area || "",
     city: customer?.city || "",
+    latitude: customer?.latitude || "",
+    longitude: customer?.longitude || "",
     jobPaymentAmount: customer?.jobPaymentAmount || "",
     notes: customer?.notes || "",
     status: customer?.status || "ACTIVE",
@@ -89,6 +91,8 @@ export default function CustomerForm({ customer, loading, onCancel, onSubmit }) 
         <Input label="Email" type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} />
         <Input label="Area" value={form.area} onChange={(event) => updateField("area", event.target.value)} />
         <Input label="City" value={form.city} onChange={(event) => updateField("city", event.target.value)} />
+        <Input label="Latitude" type="number" step="0.0000001" value={form.latitude} onChange={(event) => updateField("latitude", event.target.value)} />
+        <Input label="Longitude" type="number" step="0.0000001" value={form.longitude} onChange={(event) => updateField("longitude", event.target.value)} />
         <Input
           label="Payment Amount Per Job"
           type="number"

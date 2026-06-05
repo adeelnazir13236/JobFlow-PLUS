@@ -33,6 +33,12 @@ model User {
   createdContracts         Contract[]        @relation("ContractCreatedBy")
   createdQuotations        Quotation[]       @relation("QuotationCreatedBy")
   assignedContractServices ContractService[] @relation("ContractServiceAssignedUser")
+  technicianProfile        TechnicianProfile?
+  jobActivityLogs          JobActivityLog[]   @relation("JobActivityLogUser")
+  jobNotes                 JobNote[]          @relation("JobNoteTechnician")
+  jobAttachments           JobAttachment[]    @relation("JobAttachmentTechnician")
+  jobSignatures            JobSignature[]     @relation("JobSignatureTechnician")
+  jobLocationLogs          JobLocationLog[]    @relation("JobLocationLogTechnician")
   createdAt                DateTime          @default(now())
   updatedAt                DateTime          @updatedAt
 
@@ -70,6 +76,13 @@ model Organization {
   whatsappMessageLogs  WhatsAppMessageLog[]
   customerPortalUsers  CustomerPortalUser[]
   serviceRequests      ServiceRequest[]
+  technicianProfiles   TechnicianProfile[]
+  jobActivityLogs      JobActivityLog[]
+  jobNotes             JobNote[]
+  jobAttachments       JobAttachment[]
+  jobSignatures        JobSignature[]
+  jobCompletionChecklists JobCompletionChecklist[]
+  jobLocationLogs      JobLocationLog[]
   createdAt            DateTime                   @default(now()) @map("created_at")
   updatedAt            DateTime                   @updatedAt @map("updated_at")
 
@@ -221,6 +234,8 @@ model Customer {
   address          String?
   area             String?
   city             String?
+  latitude         Decimal?         @db.Decimal(10, 7)
+  longitude        Decimal?         @db.Decimal(10, 7)
   jobPaymentAmount Decimal          @default(0) @db.Decimal(12, 2)
   notes            String?          @db.Text
   status           String           @default("ACTIVE")
@@ -277,6 +292,14 @@ model Job {
   scheduledTime       String
   status              JobStatus         @default(SCHEDULED)
   completionDate      DateTime?
+  checkedInAt         DateTime?         @map("checked_in_at")
+  checkedOutAt        DateTime?         @map("checked_out_at")
+  checkInLatitude     Decimal?          @map("check_in_latitude") @db.Decimal(10, 7)
+  checkInLongitude    Decimal?          @map("check_in_longitude") @db.Decimal(10, 7)
+  checkOutLatitude    Decimal?          @map("check_out_latitude") @db.Decimal(10, 7)
+  checkOutLongitude   Decimal?          @map("check_out_longitude") @db.Decimal(10, 7)
+  locationVerified    Boolean           @default(false) @map("location_verified")
+  locationVerificationStatus LocationVerificationStatus @default(NOT_CHECKED) @map("location_verification_status")
   remarks             String?           @db.Text
   createdById         Int?
   updatedById         Int?
@@ -294,6 +317,12 @@ model Job {
   convertedQuotations Quotation[]       @relation("QuotationConvertedJob")
   whatsappLogs        WhatsAppMessageLog[]
   serviceRequests     ServiceRequest[]
+  activityLogs         JobActivityLog[]
+  notes                JobNote[]
+  attachments          JobAttachment[]
+  signatures           JobSignature[]
+  completionChecklist  JobCompletionChecklist[]
+  locationLogs         JobLocationLog[]
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
@@ -737,6 +766,142 @@ model ServiceRequest {
   @@map("service_requests")
 }
 
+model TechnicianProfile {
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @map("organization_id")
+  userId         Int          @unique @map("user_id")
+  employeeCode   String?      @map("employee_code")
+  phone          String?
+  designation    String?
+  active         Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@index([organizationId])
+  @@index([active])
+  @@map("technician_profiles")
+}
+
+model JobActivityLog {
+  id             Int             @id @default(autoincrement())
+  organizationId Int             @map("organization_id")
+  jobId          Int             @map("job_id")
+  userId         Int?            @map("user_id")
+  activityType   JobActivityType @map("activity_type")
+  notes          String?         @db.Text
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  job            Job             @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user           User?           @relation("JobActivityLogUser", fields: [userId], references: [id], onDelete: SetNull)
+  createdAt      DateTime        @default(now()) @map("created_at")
+
+  @@index([organizationId])
+  @@index([jobId])
+  @@index([userId])
+  @@index([activityType])
+  @@index([createdAt])
+  @@map("job_activity_logs")
+}
+
+model JobNote {
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @map("organization_id")
+  jobId          Int          @map("job_id")
+  technicianId   Int?         @map("technician_id")
+  note           String       @db.Text
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  job            Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  technician     User?        @relation("JobNoteTechnician", fields: [technicianId], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@index([organizationId])
+  @@index([jobId])
+  @@index([technicianId])
+  @@map("job_notes")
+}
+
+model JobAttachment {
+  id             Int                @id @default(autoincrement())
+  organizationId Int                @map("organization_id")
+  jobId          Int                @map("job_id")
+  technicianId   Int?               @map("technician_id")
+  fileName       String             @map("file_name")
+  filePath       String             @map("file_path")
+  attachmentType JobAttachmentType  @map("attachment_type")
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  job            Job                @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  technician     User?              @relation("JobAttachmentTechnician", fields: [technicianId], references: [id], onDelete: SetNull)
+  uploadedAt     DateTime           @default(now()) @map("uploaded_at")
+
+  @@index([organizationId])
+  @@index([jobId])
+  @@index([technicianId])
+  @@index([attachmentType])
+  @@map("job_attachments")
+}
+
+model JobSignature {
+  id                 Int          @id @default(autoincrement())
+  organizationId     Int          @map("organization_id")
+  jobId              Int          @map("job_id")
+  technicianId       Int?         @map("technician_id")
+  signatureImagePath String       @map("signature_image_path")
+  signedByName       String       @map("signed_by_name")
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  job                 Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  technician          User?        @relation("JobSignatureTechnician", fields: [technicianId], references: [id], onDelete: SetNull)
+  signedAt            DateTime     @default(now()) @map("signed_at")
+
+  @@index([organizationId])
+  @@index([jobId])
+  @@index([technicianId])
+  @@map("job_signatures")
+}
+
+model JobCompletionChecklist {
+  id             Int          @id @default(autoincrement())
+  organizationId Int          @map("organization_id")
+  jobId          Int          @map("job_id")
+  itemName       String       @map("item_name")
+  completed      Boolean      @default(false)
+  completedAt    DateTime?    @map("completed_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  job            Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([jobId])
+  @@index([completed])
+  @@map("job_completion_checklists")
+}
+
+model JobLocationLog {
+  id                      Int              @id @default(autoincrement())
+  organizationId          Int              @map("organization_id")
+  jobId                   Int              @map("job_id")
+  technicianId            Int?             @map("technician_id")
+  eventType               JobLocationEvent @map("event_type")
+  latitude                Decimal          @db.Decimal(10, 7)
+  longitude               Decimal          @db.Decimal(10, 7)
+  accuracy                Decimal?         @db.Decimal(10, 2)
+  distanceFromJobLocation Decimal?         @map("distance_from_job_location") @db.Decimal(12, 2)
+  isVerified              Boolean          @default(false) @map("is_verified")
+  capturedAt              DateTime         @default(now()) @map("captured_at")
+  notes                   String?          @db.Text
+  organization            Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  job                     Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  technician              User?            @relation("JobLocationLogTechnician", fields: [technicianId], references: [id], onDelete: SetNull)
+  createdAt               DateTime         @default(now()) @map("created_at")
+
+  @@index([organizationId])
+  @@index([jobId])
+  @@index([technicianId])
+  @@index([eventType])
+  @@index([capturedAt])
+  @@map("job_location_logs")
+}
+
 enum UserRole {
   SYSTEM_ADMIN
   ADMIN
@@ -746,9 +911,42 @@ enum UserRole {
 
 enum JobStatus {
   SCHEDULED
+  IN_PROGRESS
+  PAUSED
   COMPLETED
   CANCELLED
   RESCHEDULED
+}
+
+enum JobActivityType {
+  VIEWED
+  STARTED
+  PAUSED
+  RESUMED
+  COMPLETED
+  NOTE_ADDED
+  PHOTO_UPLOADED
+  SIGNATURE_CAPTURED
+  CHECKED_IN
+  CHECKED_OUT
+}
+
+enum JobLocationEvent {
+  CHECK_IN
+  CHECK_OUT
+}
+
+enum LocationVerificationStatus {
+  NOT_CHECKED
+  VERIFIED
+  OUT_OF_RANGE
+  LOCATION_NOT_AVAILABLE
+}
+
+enum JobAttachmentType {
+  BEFORE_PHOTO
+  AFTER_PHOTO
+  GENERAL_ATTACHMENT
 }
 
 enum CallResponse {

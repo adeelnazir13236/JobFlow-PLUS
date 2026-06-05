@@ -5,7 +5,7 @@ import { tenantData, tenantWhere } from "../utils/tenant.js";
 import { validateEnum } from "../utils/validation.js";
 import { safelySendNotification, sendJobNotification } from "./whatsapp.service.js";
 
-const jobStatuses = ["SCHEDULED", "COMPLETED", "CANCELLED", "RESCHEDULED"];
+const jobStatuses = ["SCHEDULED", "IN_PROGRESS", "PAUSED", "COMPLETED", "CANCELLED", "RESCHEDULED"];
 
 const jobInclude = {
   customer: true,

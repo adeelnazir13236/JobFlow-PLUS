@@ -9,7 +9,7 @@ import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
 import Table from "../components/Table";
 
-const statuses = ["ALL", "SCHEDULED", "COMPLETED", "CANCELLED", "RESCHEDULED"];
+const statuses = ["ALL", "SCHEDULED", "IN_PROGRESS", "PAUSED", "COMPLETED", "CANCELLED", "RESCHEDULED"];
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleDateString() : "N/A";

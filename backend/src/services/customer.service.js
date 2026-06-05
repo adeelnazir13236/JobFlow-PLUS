@@ -45,8 +45,17 @@ function withFinancialSummary(customer) {
 }
 
 function normalizeCustomerData(customerData) {
+  const latitude = customerData.latitude !== undefined && customerData.latitude !== ""
+    ? Number(customerData.latitude)
+    : null;
+  const longitude = customerData.longitude !== undefined && customerData.longitude !== ""
+    ? Number(customerData.longitude)
+    : null;
+
   return {
     ...customerData,
+    latitude,
+    longitude,
     jobPaymentAmount: customerData.jobPaymentAmount !== undefined && customerData.jobPaymentAmount !== ""
       ? Number(customerData.jobPaymentAmount)
       : 0
@@ -107,6 +116,10 @@ export async function createCustomer(data, currentUser) {
     throw new ApiError(400, "Job payment amount must be a valid non-negative amount");
   }
 
+  if ((normalizedCustomerData.latitude !== null && !Number.isFinite(normalizedCustomerData.latitude)) || (normalizedCustomerData.longitude !== null && !Number.isFinite(normalizedCustomerData.longitude))) {
+    throw new ApiError(400, "Latitude and longitude must be valid numbers");
+  }
+
   return prisma.$transaction(async (tx) => {
     if (isSystemAdmin(currentUser)) {
       if (!Number.isInteger(tenant.organizationId) || tenant.organizationId <= 0) {
@@ -163,6 +176,10 @@ export async function updateCustomer(id, data, currentUser) {
 
   if (!Number.isFinite(normalizedCustomerData.jobPaymentAmount) || normalizedCustomerData.jobPaymentAmount < 0) {
     throw new ApiError(400, "Job payment amount must be a valid non-negative amount");
+  }
+
+  if ((normalizedCustomerData.latitude !== null && !Number.isFinite(normalizedCustomerData.latitude)) || (normalizedCustomerData.longitude !== null && !Number.isFinite(normalizedCustomerData.longitude))) {
+    throw new ApiError(400, "Latitude and longitude must be valid numbers");
   }
 
   return prisma.$transaction(async (tx) => {

@@ -147,6 +147,11 @@ router.get("/:id", asyncHandler(async (req, res) => {
         include: { plan: true },
         orderBy: { createdAt: "desc" }
       },
+      billingInvoices: {
+        take: 5,
+        include: { plan: true },
+        orderBy: { invoiceDate: "desc" }
+      },
       featureOverrides: {
         include: { feature: true },
         orderBy: { createdAt: "desc" }
@@ -158,7 +163,9 @@ router.get("/:id", asyncHandler(async (req, res) => {
           jobs: true,
           followUps: true,
           callLogs: true,
-          payments: true
+          payments: true,
+          billingInvoices: true,
+          billingPayments: true
         }
       }
     }
