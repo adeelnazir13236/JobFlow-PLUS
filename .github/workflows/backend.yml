@@ -1,0 +1,72 @@
+name: Deploy Backend via SSH
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Never let two deploys touch the same checkout at once. cancel-in-progress is
+# false on purpose: killing a run mid-migration would leave the DB half-applied.
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to cPanel
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 198.187.31.203
+          username: sigmolabs
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 21098
+          # Abort the job on the first failing command instead of reporting success.
+          script_stop: true
+          script: |
+            REPO_DIR=/home/sigmolabs/jobflow-plus
+            APP_DIR="$REPO_DIR/backend"
+            # This path must match the Application Root shown on the cPanel
+            # "Setup Node.js App" page for backend-jobflow-plus.sigmolab.com.
+            NODEVENV=/home/sigmolabs/nodevenv/jobflow-plus/backend/20/bin/activate
+
+            # 1. Sync the monorepo. backend/.env is gitignored, so reset --hard leaves it alone.
+            cd "$REPO_DIR"
+            git fetch origin
+            git reset --hard origin/main
+
+            # 2. Activate the virtualenv FIRST — npm/npx are "command not found" until this runs.
+            source "$NODEVENV"
+
+            # 3. Install from the backend package, not the repo root. The explicit --prefix
+            #    overrides the one cPanel's activate script bakes into npm, which otherwise
+            #    makes npm look for package.json inside the nodevenv instead of the app.
+            cd "$APP_DIR"
+            npm install --prefix "$APP_DIR"
+
+            # 4. Prisma 7 no longer generates the client on postinstall, so it has to be
+            #    explicit. migrate deploy applies committed migrations non-interactively.
+            npx prisma generate
+            npx prisma migrate deploy
+
+            # 5. Restart the Passenger process.
+            mkdir -p tmp
+            touch tmp/restart.txt
+
+      - name: Verify backend is healthy
+        run: |
+          # Passenger restarts lazily, so the first request is what actually boots the
+          # new process. Poll until it answers rather than assuming the touch worked.
+          for i in $(seq 1 10); do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' https://backend-jobflow-plus.sigmolab.com/health || echo 000)
+            if [ "$code" = "200" ]; then
+              echo "Backend healthy after ${i} attempt(s)."
+              exit 0
+            fi
+            echo "Attempt ${i}: HTTP ${code}"
+            sleep 6
+          done
+          echo "Backend did not return 200 within 60s of restart."
+          exit 1

@@ -1,0 +1,10 @@
+# Copied into dist/ by Vite so the rsync deploy (--delete) cannot remove it.
+# Without this, React Router deep links like /jobs/12 return a 404 from Apache.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+  RewriteRule ^ index.html [L]
+</IfModule>

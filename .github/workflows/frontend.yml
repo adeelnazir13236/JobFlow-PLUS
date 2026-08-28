@@ -1,0 +1,47 @@
+name: Deploy Frontend via SSH
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-frontend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install and Build
+        working-directory: ./frontend
+        run: |
+          npm install
+          npm run build
+        env:
+          # Baked into the bundle at build time — changing the API host needs a rebuild.
+          VITE_API_URL: https://backend-jobflow-plus.sigmolab.com/api
+
+      - name: Deploy to cPanel via Rsync
+        uses: Burnett01/rsync-deployments@7.0.1
+        with:
+          # -avz keeps permissions and compresses; --delete removes stale bundles.
+          # The excludes protect cPanel-owned dirs from --delete: .well-known holds the
+          # ACME challenges AutoSSL needs to renew certs. Do not quote the patterns —
+          # the action word-splits this string, so quotes end up inside the pattern.
+          switches: -avz --delete --exclude=.well-known --exclude=cgi-bin
+          path: ./frontend/dist/
+          remote_path: /home/sigmolabs/jobflow-plus.sigmolab.com/
+          remote_host: 198.187.31.203
+          remote_user: sigmolabs
+          remote_port: 21098
+          remote_key: ${{ secrets.SSH_PRIVATE_KEY }}
