@@ -8,7 +8,8 @@
     "start": "node src/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "seed:test": "node prisma/seed-test-data.js"
+    "seed:test": "node prisma/seed-test-data.js",
+    "seed:plans": "node prisma/seed-plans.js"
   },
   "dependencies": {
     "@prisma/adapter-mariadb": "^7.8.0",
